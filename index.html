@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오늘 뭐 먹지?</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      border-radius: 24px;
+      padding: 40px;
+      width: 480px;
+      max-width: 95vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2rem;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    /* 시작 화면 */
+    #start-screen .emoji {
+      font-size: 5rem;
+      margin-bottom: 24px;
+      display: block;
+    }
+
+    #btn-start {
+      background: linear-gradient(135deg, #ff9a56, #ff6b6b);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 16px 48px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.45);
+    }
+
+    #btn-start:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(255, 107, 107, 0.55);
+    }
+
+    #btn-start:active {
+      transform: translateY(0);
+    }
+
+    /* 카테고리 화면 */
+    #category-screen, #menu-screen, #result-screen {
+      display: none;
+    }
+
+    .step-label {
+      font-size: 0.8rem;
+      color: #bbb;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .card {
+      border: 2px solid #f0f0f0;
+      border-radius: 16px;
+      padding: 20px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: #fafafa;
+    }
+
+    .card:hover {
+      border-color: #ff6b6b;
+      background: #fff5f5;
+      transform: translateY(-2px);
+    }
+
+    .card.selected {
+      border-color: #ff6b6b;
+      background: #fff0f0;
+    }
+
+    .card .icon {
+      font-size: 2.2rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .card .label {
+      font-size: 0.95rem;
+      color: #444;
+      font-weight: 600;
+    }
+
+    .btn-next {
+      width: 100%;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 8px;
+    }
+
+    .btn-next:hover { background: #ff4f4f; }
+    .btn-next:disabled { background: #ddd; cursor: default; }
+
+    /* 메뉴 선택 */
+    .menu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 20px 0;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .menu-item {
+      border: 2px solid #f0f0f0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.15s;
+      background: #fafafa;
+      text-align: left;
+    }
+
+    .menu-item:hover {
+      border-color: #ff6b6b;
+      background: #fff5f5;
+    }
+
+    .menu-item.selected {
+      border-color: #ff6b6b;
+      background: #fff0f0;
+    }
+
+    .menu-item .m-icon { font-size: 1.6rem; }
+    .menu-item .m-name { font-size: 1rem; font-weight: 600; color: #333; }
+    .menu-item .m-desc { font-size: 0.8rem; color: #999; margin-top: 2px; }
+    .menu-item .check {
+      margin-left: auto;
+      font-size: 1.2rem;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .menu-item.selected .check { opacity: 1; }
+
+    /* 결과 화면 */
+    #result-screen .result-emoji {
+      font-size: 5rem;
+      display: block;
+      margin: 16px 0;
+      animation: pop 0.4s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.5); opacity: 0; }
+      70% { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .result-name {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #ff6b6b;
+      margin-bottom: 8px;
+    }
+
+    .result-desc {
+      color: #888;
+      margin-bottom: 28px;
+      font-size: 0.95rem;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: #f5f5f5;
+      color: #555;
+      border: none;
+      border-radius: 12px;
+      padding: 13px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-secondary:hover { background: #eaeaea; }
+
+    .btn-primary {
+      flex: 1;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 13px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-primary:hover { background: #ff4f4f; }
+
+    .progress {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .progress-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #eee;
+      transition: background 0.3s;
+    }
+
+    .progress-dot.active { background: #ff6b6b; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 시작 화면 -->
+  <div id="start-screen">
+    <span class="emoji">🍽️</span>
+    <h1>오늘 뭐 먹지?</h1>
+    <p class="subtitle">버튼을 누르면 오늘의 메뉴를 랜덤으로 골라드려요!</p>
+    <button id="btn-start" onclick="randomPick()">🎲 랜덤으로 골라줘!</button>
+  </div>
+
+  <!-- 카테고리 선택 -->
+  <div id="category-screen">
+    <div class="progress">
+      <div class="progress-dot active" id="dot1"></div>
+      <div class="progress-dot" id="dot2"></div>
+      <div class="progress-dot" id="dot3"></div>
+    </div>
+    <div class="step-label">Step 1</div>
+    <h1>어떤 종류?</h1>
+    <p class="subtitle">먹고 싶은 음식 종류를 골라보세요</p>
+    <div class="grid" id="category-grid"></div>
+    <button class="btn-next" id="btn-cat-next" disabled onclick="goMenu()">다음 →</button>
+  </div>
+
+  <!-- 메뉴 선택 -->
+  <div id="menu-screen">
+    <div class="progress">
+      <div class="progress-dot active"></div>
+      <div class="progress-dot active" id="dot2b"></div>
+      <div class="progress-dot" id="dot3b"></div>
+    </div>
+    <div class="step-label">Step 2</div>
+    <h1 id="menu-title">메뉴 선택</h1>
+    <p class="subtitle">구체적인 메뉴를 골라보세요</p>
+    <div class="menu-list" id="menu-list"></div>
+    <button class="btn-next" id="btn-menu-next" disabled onclick="goResult()">결정하기 🎉</button>
+  </div>
+
+  <!-- 결과 화면 -->
+  <div id="result-screen">
+    <div class="progress">
+      <div class="progress-dot active"></div>
+      <div class="progress-dot active"></div>
+      <div class="progress-dot active"></div>
+    </div>
+    <div class="step-label">오늘의 메뉴</div>
+    <span class="result-emoji" id="result-emoji"></span>
+    <div class="result-name" id="result-name"></div>
+    <div class="result-desc" id="result-desc"></div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="goCategory()">직접 고르기</button>
+      <button class="btn-primary" onclick="randomPick()">🎲 다시 뽑기</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const MENUS = {
+    korean: {
+      label: '한식', icon: '🥘',
+      items: [
+        { icon: '🍚', name: '비빔밥', desc: '형형색색 나물과 고추장의 조화' },
+        { icon: '🍲', name: '김치찌개', desc: '얼큰하고 구수한 국민 찌개' },
+        { icon: '🥩', name: '불고기', desc: '달콤한 양념의 부드러운 소고기' },
+        { icon: '🍖', name: '삼겹살', desc: '노릇노릇 구운 돼지 삼겹살' },
+        { icon: '🍜', name: '냉면', desc: '시원하고 쫄깃한 여름 별미' },
+        { icon: '🥣', name: '된장찌개', desc: '구수하고 정갈한 집밥의 맛' },
+        { icon: '🍣', name: '순두부찌개', desc: '부드럽고 매콤한 순두부' },
+        { icon: '🍛', name: '갈비탕', desc: '진하고 깊은 사골 국물' },
+      ]
+    },
+    chinese: {
+      label: '중식', icon: '🥡',
+      items: [
+        { icon: '🍜', name: '짜장면', desc: '달콤짭조름한 춘장 면 요리' },
+        { icon: '🍲', name: '짬뽕', desc: '얼큰하고 시원한 해물 국물' },
+        { icon: '🍗', name: '탕수육', desc: '바삭한 튀김에 새콤달콤 소스' },
+        { icon: '🥟', name: '만두', desc: '속이 꽉 찬 찐/군 만두' },
+        { icon: '🍛', name: '마파두부', desc: '매콤한 사천식 두부 요리' },
+        { icon: '🦐', name: '깐풍기', desc: '바삭하고 매콤한 닭 요리' },
+      ]
+    },
+    japanese: {
+      label: '일식', icon: '🍱',
+      items: [
+        { icon: '🍣', name: '스시/초밥', desc: '신선한 해산물과 밥의 조화' },
+        { icon: '🍜', name: '라멘', desc: '깊은 육수의 일본식 국수' },
+        { icon: '🍱', name: '가츠동', desc: '바삭한 돈까스 덮밥' },
+        { icon: '🦑', name: '우동', desc: '쫄깃한 굵은 면 요리' },
+        { icon: '🥩', name: '야끼니쿠', desc: '숯불 향의 일본식 고기구이' },
+        { icon: '🍤', name: '덴푸라', desc: '가볍고 바삭한 일본식 튀김' },
+      ]
+    },
+    western: {
+      label: '양식', icon: '🍝',
+      items: [
+        { icon: '🍝', name: '파스타', desc: '다양한 소스의 이탈리안 면 요리' },
+        { icon: '🍕', name: '피자', desc: '치즈 가득 이탈리안 피자' },
+        { icon: '🥩', name: '스테이크', desc: '육즙 가득 구운 소고기' },
+        { icon: '🍔', name: '버거', desc: '두툼한 패티의 수제 버거' },
+        { icon: '🥗', name: '샐러드', desc: '신선한 채소의 건강 한 끼' },
+        { icon: '🍲', name: '리조또', desc: '크리미한 이탈리안 쌀 요리' },
+      ]
+    },
+    fast: {
+      label: '패스트푸드', icon: '🍟',
+      items: [
+        { icon: '🍟', name: '후라이드치킨', desc: '바삭하고 짭조름한 치킨' },
+        { icon: '🌮', name: '타코', desc: '멕시칸 스타일 토르티야 요리' },
+        { icon: '🌯', name: '샌드위치', desc: '든든하고 간편한 한 끼' },
+        { icon: '🍦', name: '핫도그', desc: '소시지가 들어간 간식' },
+        { icon: '🥙', name: '케밥', desc: '고기와 야채의 중동식 요리' },
+        { icon: '🍿', name: '떡볶이+치킨', desc: '국민 분식 황금 조합' },
+      ]
+    },
+    snack: {
+      label: '분식', icon: '🥢',
+      items: [
+        { icon: '🌶️', name: '떡볶이', desc: '매콤달콤한 국민 간식' },
+        { icon: '🍙', name: '김밥', desc: '간편하고 든든한 한 줄' },
+        { icon: '🍜', name: '라볶이', desc: '라면+떡볶이의 환상 조합' },
+        { icon: '🥟', name: '순대', desc: '쫄깃한 전통 분식' },
+        { icon: '🍳', name: '계란빵', desc: '달달하고 따뜻한 길거리 간식' },
+        { icon: '🥞', name: '호떡', desc: '달콤한 시럽의 겨울 간식' },
+      ]
+    },
+  };
+
+  let selectedCategory = null;
+  let selectedMenu = null;
+
+  function show(id) {
+    ['start-screen', 'category-screen', 'menu-screen', 'result-screen']
+      .forEach(s => document.getElementById(s).style.display = 'none');
+    document.getElementById(id).style.display = 'block';
+  }
+
+  function goCategory() {
+    selectedCategory = null;
+    selectedMenu = null;
+    renderCategories();
+    show('category-screen');
+  }
+
+  function renderCategories() {
+    const grid = document.getElementById('category-grid');
+    grid.innerHTML = '';
+    Object.entries(MENUS).forEach(([key, cat]) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<span class="icon">${cat.icon}</span><span class="label">${cat.label}</span>`;
+      card.onclick = () => {
+        document.querySelectorAll('#category-grid .card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedCategory = key;
+        document.getElementById('btn-cat-next').disabled = false;
+      };
+      grid.appendChild(card);
+    });
+  }
+
+  function goMenu() {
+    if (!selectedCategory) return;
+    selectedMenu = null;
+    const cat = MENUS[selectedCategory];
+    document.getElementById('menu-title').textContent = cat.label + ' 메뉴';
+    const list = document.getElementById('menu-list');
+    list.innerHTML = '';
+    cat.items.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'menu-item';
+      el.innerHTML = `
+        <span class="m-icon">${item.icon}</span>
+        <div>
+          <div class="m-name">${item.name}</div>
+          <div class="m-desc">${item.desc}</div>
+        </div>
+        <span class="check">✅</span>
+      `;
+      el.onclick = () => {
+        document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedMenu = item;
+        document.getElementById('btn-menu-next').disabled = false;
+      };
+      list.appendChild(el);
+    });
+    document.getElementById('btn-menu-next').disabled = true;
+    show('menu-screen');
+  }
+
+  function goResult() {
+    if (!selectedMenu) return;
+    showResult(selectedMenu);
+  }
+
+  function randomPick() {
+    const cats = Object.values(MENUS);
+    const cat = cats[Math.floor(Math.random() * cats.length)];
+    const item = cat.items[Math.floor(Math.random() * cat.items.length)];
+    showResult(item);
+  }
+
+  function showResult(item) {
+    document.getElementById('result-emoji').textContent = item.icon;
+    document.getElementById('result-name').textContent = item.name;
+    document.getElementById('result-desc').textContent = item.desc;
+    show('result-screen');
+  }
+
+  // 초기 화면
+  show('start-screen');
+</script>
+</body>
+</html>
