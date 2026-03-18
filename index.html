@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오늘 뭐 먹지?</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      border-radius: 24px;
+      padding: 40px;
+      width: 480px;
+      max-width: 95vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2rem;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    /* 시작 화면 */
+    #start-screen .emoji {
+      font-size: 5rem;
+      margin-bottom: 24px;
+      display: block;
+    }
+
+    #btn-start {
+      background: linear-gradient(135deg, #ff9a56, #ff6b6b);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 16px 48px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.45);
+    }
+
+    #btn-start:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(255, 107, 107, 0.55);
+    }
+
+    #btn-start:active {
+      transform: translateY(0);
+    }
+
+    /* 카테고리 화면 */
+    #category-screen, #menu-screen, #result-screen {
+      display: none;
+    }
+
+    .step-label {
+      font-size: 0.8rem;
+      color: #bbb;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin: 24px 0;
+    }
+
+    .card {
+      border: 2px solid #f0f0f0;
+      border-radius: 16px;
+      padding: 20px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: #fafafa;
+    }
+
+    .card:hover {
+      border-color: #ff6b6b;
+      background: #fff5f5;
+      transform: translateY(-2px);
+    }
+
+    .card.selected {
+      border-color: #ff6b6b;
+      background: #fff0f0;
+    }
+
+    .card .icon {
+      font-size: 2.2rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .card .label {
+      font-size: 0.95rem;
+      color: #444;
+      font-weight: 600;
+    }
+
+    .btn-next {
+      width: 100%;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 8px;
+    }
+
+    .btn-next:hover { background: #ff4f4f; }
+    .btn-next:disabled { background: #ddd; cursor: default; }
+
+    /* 메뉴 선택 */
+    .menu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 20px 0;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .menu-item {
+      border: 2px solid #f0f0f0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.15s;
+      background: #fafafa;
+      text-align: left;
+    }
+
+    .menu-item:hover {
+      border-color: #ff6b6b;
+      background: #fff5f5;
+    }
+
+    .menu-item.selected {
+      border-color: #ff6b6b;
+      background: #fff0f0;
+    }
+
+    .menu-item .m-icon { font-size: 1.6rem; }
+    .menu-item .m-name { font-size: 1rem; font-weight: 600; color: #333; }
+    .menu-item .m-desc { font-size: 0.8rem; color: #999; margin-top: 2px; }
+    .menu-item .check {
+      margin-left: auto;
+      font-size: 1.2rem;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .menu-item.selected .check { opacity: 1; }
+
+    /* 결과 화면 */
+    #result-screen .result-emoji {
+      font-size: 5rem;
+      display: block;
+      margin: 16px 0;
+      animation: pop 0.4s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.5); opacity: 0; }
+      70% { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .result-name {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #ff6b6b;
+      margin-bottom: 8px;
+    }
+
+    .result-desc {
+      color: #888;
+      margin-bottom: 28px;
+      font-size: 0.95rem;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: #f5f5f5;
+      color: #555;
+      border: none;
+      border-radius: 12px;
+      padding: 13px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-secondary:hover { background: #eaeaea; }
+
+    .btn-primary {
+      flex: 1;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 13px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-primary:hover { background: #ff4f4f; }
+
+    .progress {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .progress-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #eee;
+      transition: background 0.3s;
+    }
+
+    .progress-dot.active { background: #ff6b6b; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 시작 화면 -->
+  <div id="start-screen">
+    <span class="emoji">🍽️</span>
+    <h1>오늘 뭐 먹지?</h1>
+    <p class="subtitle">버튼을 누르면 오늘의 메뉴를 랜덤으로 골라드려요!</p>
+    <button id="btn-start" onclick="randomPick()">🎲 랜덤으로 골라줘!</button>
+  </div>
+
+  <!-- 카테고리 선택 -->
+  <div id="category-screen">
+    <div class="progress">
+      <div class="progress-dot active" id="dot1"></div>
+      <div class="progress-dot" id="dot2"></div>
+      <div class="progress-dot" id="dot3"></div>
+    </div>
+    <div class="step-label">Step 1</div>
+    <h1>어떤 종류?</h1>
+    <p class="subtitle">먹고 싶은 음식 종류를 골라보세요</p>
+    <div class="grid" id="category-grid"></div>
+    <button class="btn-next" id="btn-cat-next" disabled onclick="goMenu()">다음 →</button>
+  </div>
+
+  <!-- 메뉴 선택 -->
+  <div id="menu-screen">
+    <div class="progress">
+      <div class="progress-dot active"></div>
+      <div class="progress-dot active" id="dot2b"></div>
+      <div class="progress-dot" id="dot3b"></div>
+    </div>
+    <div class="step-label">Step 2</div>
+    <h1 id="menu-title">메뉴 선택</h1>
+    <p class="subtitle">구체적인 메뉴를 골라보세요</p>
+    <div class="menu-list" id="menu-list"></div>
+    <button class="btn-next" id="btn-menu-next" disabled onclick="goResult()">결정하기 🎉</button>
+  </div>
+
+  <!-- 결과 화면 -->
+  <div id="result-screen">
+    <div class="progress">
+      <div class="progress-dot active"></div>
+      <div class="progress-dot active"></div>
+      <div class="progress-dot active"></div>
+    </div>
+    <div class="step-label">오늘의 메뉴</div>
+    <span class="result-emoji" id="result-emoji"></span>
+    <div class="result-name" id="result-name"></div>
+    <div class="result-desc" id="result-desc"></div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="goCategory()">직접 고르기</button>
+      <button class="btn-primary" onclick="randomPick()">🎲 다시 뽑기</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const MENUS = {
+    korean: {
+      label: '한식', icon: '🥘',
+      items: [
+        { icon: '🍚', name: '비빔밥', desc: '형형색색 나물과 고추장의 조화' },
+        { icon: '🍲', name: '김치찌개', desc: '얼큰하고 구수한 국민 찌개' },
+        { icon: '🥩', name: '불고기', desc: '달콤한 양념의 부드러운 소고기' },
+        { icon: '🍖', name: '삼겹살', desc: '노릇노릇 구운 돼지 삼겹살' },
+        { icon: '🍜', name: '냉면', desc: '시원하고 쫄깃한 여름 별미' },
+        { icon: '🥣', name: '된장찌개', desc: '구수하고 정갈한 집밥의 맛' },
+        { icon: '🍣', name: '순두부찌개', desc: '부드럽고 매콤한 순두부' },
+        { icon: '🍛', name: '갈비탕', desc: '진하고 깊은 사골 국물' },
+        { icon: '🍗', name: '삼계탕', desc: '보양식의 대명사, 닭 한 마리' },
+        { icon: '🌶️', name: '제육볶음', desc: '매콤달콤한 돼지고기 볶음' },
+        { icon: '🍖', name: '갈비찜', desc: '부드럽고 달콤한 소갈비 찜' },
+        { icon: '🥞', name: '해물파전', desc: '바삭하고 쫄깃한 해물 부침개' },
+        { icon: '🍜', name: '잡채', desc: '당면과 각종 채소의 잔칫상 요리' },
+        { icon: '🍲', name: '육개장', desc: '칼칼하고 얼큰한 소고기 국' },
+        { icon: '🥣', name: '콩나물국밥', desc: '해장에 딱인 시원한 국밥' },
+        { icon: '🍛', name: '설렁탕', desc: '뽀얗고 구수한 사골 국밥' },
+        { icon: '🐷', name: '보쌈', desc: '수육과 김치의 환상 조합' },
+        { icon: '🐷', name: '족발', desc: '쫄깃하고 고소한 돼지 족발' },
+        { icon: '🍲', name: '순대국밥', desc: '진하고 뜨끈한 순대 국밥' },
+        { icon: '🍖', name: '감자탕', desc: '돼지 등뼈와 감자의 얼큰한 탕' },
+      ]
+    },
+    chinese: {
+      label: '중식', icon: '🥡',
+      items: [
+        { icon: '🍜', name: '짜장면', desc: '달콤짭조름한 춘장 면 요리' },
+        { icon: '🍲', name: '짬뽕', desc: '얼큰하고 시원한 해물 국물' },
+        { icon: '🍗', name: '탕수육', desc: '바삭한 튀김에 새콤달콤 소스' },
+        { icon: '🥟', name: '만두', desc: '속이 꽉 찬 찐/군 만두' },
+        { icon: '🍛', name: '마파두부', desc: '매콤한 사천식 두부 요리' },
+        { icon: '🦐', name: '깐풍기', desc: '바삭하고 매콤한 닭 요리' },
+        { icon: '🍚', name: '볶음밥', desc: '고소한 기름에 볶은 중화식 밥' },
+        { icon: '🦐', name: '팔보채', desc: '해산물과 채소의 고급 중화요리' },
+        { icon: '🥗', name: '양장피', desc: '새콤달콤 겨자 소스의 냉채' },
+        { icon: '🥟', name: '딤섬', desc: '한입 크기 광둥식 만두 모음' },
+        { icon: '🍲', name: '훠궈', desc: '얼얼한 마라 육수에 끓여 먹는 샤부샤부' },
+        { icon: '🍜', name: '우육면', desc: '진한 국물의 대만식 소고기 면' },
+      ]
+    },
+    japanese: {
+      label: '일식', icon: '🍱',
+      items: [
+        { icon: '🍣', name: '스시/초밥', desc: '신선한 해산물과 밥의 조화' },
+        { icon: '🍜', name: '라멘', desc: '깊은 육수의 일본식 국수' },
+        { icon: '🍱', name: '가츠동', desc: '바삭한 돈까스 덮밥' },
+        { icon: '🦑', name: '우동', desc: '쫄깃한 굵은 면 요리' },
+        { icon: '🥩', name: '야끼니쿠', desc: '숯불 향의 일본식 고기구이' },
+        { icon: '🍤', name: '덴푸라', desc: '가볍고 바삭한 일본식 튀김' },
+        { icon: '🍜', name: '소바', desc: '고소한 메밀로 만든 면 요리' },
+        { icon: '🥞', name: '오코노미야끼', desc: '채소와 해물이 듬뿍 든 일본식 부침개' },
+        { icon: '🐙', name: '타코야끼', desc: '문어가 들어간 동그란 철판 간식' },
+        { icon: '🍗', name: '돈카츠', desc: '두껍고 바삭한 돼지고기 커틀릿' },
+        { icon: '🐄', name: '규동', desc: '달콤한 간장 소고기 덮밥' },
+        { icon: '🍲', name: '나베', desc: '다양한 재료를 넣은 일본식 전골' },
+        { icon: '🐔', name: '야키토리', desc: '꼬치에 구운 닭고기 요리' },
+        { icon: '🥚', name: '오야코동', desc: '닭고기와 달걀의 덮밥' },
+        { icon: '🥩', name: '스키야키', desc: '달콤한 간장 베이스의 고급 전골' },
+      ]
+    },
+    western: {
+      label: '양식', icon: '🍝',
+      items: [
+        { icon: '🍝', name: '파스타', desc: '다양한 소스의 이탈리안 면 요리' },
+        { icon: '🍕', name: '피자', desc: '치즈 가득 이탈리안 피자' },
+        { icon: '🥩', name: '스테이크', desc: '육즙 가득 구운 소고기' },
+        { icon: '🍔', name: '버거', desc: '두툼한 패티의 수제 버거' },
+        { icon: '🥗', name: '샐러드', desc: '신선한 채소의 건강 한 끼' },
+        { icon: '🍚', name: '리조또', desc: '크리미한 이탈리안 쌀 요리' },
+        { icon: '🥣', name: '수프', desc: '따뜻하고 진한 서양식 스프' },
+        { icon: '🦞', name: '랍스터', desc: '바다의 진미, 고급 갑각류 요리' },
+        { icon: '🍜', name: '라자냐', desc: '층층이 쌓은 이탈리안 오븐 요리' },
+        { icon: '🥚', name: '에그 베네딕트', desc: '촉촉한 수란과 홀랜다이즈 소스' },
+        { icon: '🍞', name: '프렌치 토스트', desc: '달콤하고 촉촉한 브런치' },
+        { icon: '🥘', name: '그라탱', desc: '치즈를 얹어 구운 크리미한 요리' },
+        { icon: '🦪', name: '클램 차우더', desc: '조개가 들어간 진한 크림 수프' },
+        { icon: '🍗', name: '로스트 치킨', desc: '허브 향 가득한 오븐 구이 치킨' },
+        { icon: '🥩', name: '폭립', desc: '달콤한 BBQ 소스의 돼지 갈비' },
+      ]
+    },
+    fast: {
+      label: '패스트푸드', icon: '🍟',
+      items: [
+        { icon: '🍟', name: '후라이드치킨', desc: '바삭하고 짭조름한 치킨' },
+        { icon: '🌮', name: '타코', desc: '멕시칸 스타일 토르티야 요리' },
+        { icon: '🌯', name: '샌드위치', desc: '든든하고 간편한 한 끼' },
+        { icon: '🌭', name: '핫도그', desc: '소시지가 들어간 간식' },
+        { icon: '🥙', name: '케밥', desc: '고기와 야채의 중동식 요리' },
+        { icon: '🍗', name: '양념치킨', desc: '달콤매콤한 양념이 쏙 밴 치킨' },
+        { icon: '🌯', name: '부리또', desc: '속 재료 가득한 멕시칸 랩' },
+        { icon: '🧇', name: '와플', desc: '바삭하고 달콤한 벨기에 와플' },
+        { icon: '🍔', name: '치즈버거', desc: '녹진한 치즈가 듬뿍 올라간 버거' },
+        { icon: '🌽', name: '나초', desc: '살사와 치즈 소스의 옥수수 칩' },
+      ]
+    },
+    snack: {
+      label: '분식', icon: '🥢',
+      items: [
+        { icon: '🌶️', name: '떡볶이', desc: '매콤달콤한 국민 간식' },
+        { icon: '🍙', name: '김밥', desc: '간편하고 든든한 한 줄' },
+        { icon: '🍜', name: '라볶이', desc: '라면+떡볶이의 환상 조합' },
+        { icon: '🥟', name: '순대', desc: '쫄깃한 전통 분식' },
+        { icon: '🍳', name: '계란빵', desc: '달달하고 따뜻한 길거리 간식' },
+        { icon: '🥞', name: '호떡', desc: '달콤한 시럽의 겨울 간식' },
+        { icon: '🐟', name: '어묵', desc: '따뜻한 국물과 함께하는 길거리 음식' },
+        { icon: '🍢', name: '튀김', desc: '바삭바삭 다양한 속 재료 튀김' },
+        { icon: '🍞', name: '토스트', desc: '버터 향 솔솔 나는 길거리 토스트' },
+        { icon: '🌭', name: '소떡소떡', desc: '소시지와 떡이 번갈아 꿰어진 꼬치' },
+      ]
+    },
+    asian: {
+      label: '동남아식', icon: '🌴',
+      items: [
+        { icon: '🍜', name: '팟타이', desc: '새콤달콤한 태국식 볶음 쌀국수' },
+        { icon: '🍲', name: '쌀국수(포)', desc: '맑고 시원한 베트남식 쌀국수' },
+        { icon: '🍱', name: '분짜', desc: '숯불 돼지고기와 쌀국수 세트' },
+        { icon: '🥖', name: '반미', desc: '바게트에 재료를 넣은 베트남 샌드위치' },
+        { icon: '🍚', name: '나시고렝', desc: '인도네시아식 볶음밥' },
+        { icon: '🍲', name: '똠얌꿍', desc: '새콤매콤한 태국식 새우 수프' },
+        { icon: '🍛', name: '그린커리', desc: '코코넛 밀크의 향긋한 태국 커리' },
+        { icon: '🥗', name: '파파야 샐러드', desc: '새콤매콤한 태국 전통 샐러드' },
+      ]
+    },
+    world: {
+      label: '세계음식', icon: '🌍',
+      items: [
+        { icon: '🍛', name: '인도 커리', desc: '향신료 가득한 진한 인도 카레' },
+        { icon: '🥙', name: '팔라펠', desc: '병아리콩으로 만든 중동식 튀김' },
+        { icon: '🥘', name: '파에야', desc: '해산물이 가득한 스페인식 볶음밥' },
+        { icon: '🥗', name: '그리스 샐러드', desc: '올리브와 페타치즈의 지중해 샐러드' },
+        { icon: '🍲', name: '쿠스쿠스', desc: '향신료 채소와 함께하는 북아프리카 요리' },
+        { icon: '🥩', name: '슈니첼', desc: '바삭하게 튀긴 독일식 돈가스' },
+        { icon: '🍞', name: '훔무스&피타', desc: '병아리콩 딥 소스와 납작 빵' },
+        { icon: '🌮', name: '케사디야', desc: '치즈가 녹아드는 멕시칸 또르티야' },
+        { icon: '🥘', name: '모로칸 타진', desc: '천천히 끓인 모로코식 스튜' },
+        { icon: '🍖', name: '터키 되네르', desc: '회전 구이 고기의 터키 원조 케밥' },
+      ]
+    },
+  };
+
+  let selectedCategory = null;
+  let selectedMenu = null;
+
+  function show(id) {
+    ['start-screen', 'category-screen', 'menu-screen', 'result-screen']
+      .forEach(s => document.getElementById(s).style.display = 'none');
+    document.getElementById(id).style.display = 'block';
+  }
+
+  function goCategory() {
+    selectedCategory = null;
+    selectedMenu = null;
+    renderCategories();
+    show('category-screen');
+  }
+
+  function renderCategories() {
+    const grid = document.getElementById('category-grid');
+    grid.innerHTML = '';
+    Object.entries(MENUS).forEach(([key, cat]) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<span class="icon">${cat.icon}</span><span class="label">${cat.label}</span>`;
+      card.onclick = () => {
+        document.querySelectorAll('#category-grid .card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedCategory = key;
+        document.getElementById('btn-cat-next').disabled = false;
+      };
+      grid.appendChild(card);
+    });
+  }
+
+  function goMenu() {
+    if (!selectedCategory) return;
+    selectedMenu = null;
+    const cat = MENUS[selectedCategory];
+    document.getElementById('menu-title').textContent = cat.label + ' 메뉴';
+    const list = document.getElementById('menu-list');
+    list.innerHTML = '';
+    cat.items.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'menu-item';
+      el.innerHTML = `
+        <span class="m-icon">${item.icon}</span>
+        <div>
+          <div class="m-name">${item.name}</div>
+          <div class="m-desc">${item.desc}</div>
+        </div>
+        <span class="check">✅</span>
+      `;
+      el.onclick = () => {
+        document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedMenu = item;
+        document.getElementById('btn-menu-next').disabled = false;
+      };
+      list.appendChild(el);
+    });
+    document.getElementById('btn-menu-next').disabled = true;
+    show('menu-screen');
+  }
+
+  function goResult() {
+    if (!selectedMenu) return;
+    showResult(selectedMenu);
+  }
+
+  function randomPick() {
+    const cats = Object.values(MENUS);
+    const cat = cats[Math.floor(Math.random() * cats.length)];
+    const item = cat.items[Math.floor(Math.random() * cat.items.length)];
+    showResult(item);
+  }
+
+  function showResult(item) {
+    document.getElementById('result-emoji').textContent = item.icon;
+    document.getElementById('result-name').textContent = item.name;
+    document.getElementById('result-desc').textContent = item.desc;
+    show('result-screen');
+  }
+
+  // 초기 화면
+  show('start-screen');
+</script>
+</body>
+</html>
