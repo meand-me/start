@@ -1,0 +1,97 @@
+//@version=5
+indicator("BTC Parallel Diagonal Lines", overlay=true, max_lines_count=500)
+
+// ============================================================
+// 기준점 설정
+// Point A: 2021-04-12, $64,986
+// Point B: 2021-11-08, $69,198
+// Point C: 2021-05-19, $28,688 (평행선 기준점)
+// ============================================================
+
+var int t1 = timestamp("UTC", 2021, 4, 12, 0, 0)
+var float p1 = 64986.0
+
+var int t2 = timestamp("UTC", 2021, 11, 8, 0, 0)
+var float p2 = 69198.0
+
+var int t3 = timestamp("UTC", 2021, 5, 19, 0, 0)
+var float p3 = 28688.0
+
+// ============================================================
+// 기울기 및 간격 계산
+// ============================================================
+
+// 상단선(A-B)의 기울기로 t3 시점의 상단선 가격 계산
+var float slope = (p2 - p1) / (t2 - t1)
+var float p_top_at_t3 = p1 + slope * (t3 - t1)
+
+// 상단선과 하단 평행선 사이의 전체 수직 거리
+var float full_gap = p_top_at_t3 - p3
+
+// 단위 높이 = 전체 거리의 절반 (상단선~중간선 거리)
+var float unit = full_gap / 2.0
+
+// ============================================================
+// 선 그리기 (총 9개)
+// +1: 상단선 위 1칸
+//  0: 상단선 (A-B 연결)
+// -1: 중간선 (절반 높이)
+// -2: 하단선 (C점 통과 평행선)
+// -3 ~ -7: 하단선 아래 5칸
+// ============================================================
+
+if barstate.islast
+    // 오프셋 배열: 상단선 기준으로 unit 단위
+    offsets = array.from(1.0, 0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0)
+
+    // 색상 배열
+    colors = array.from(
+         color.new(#FF9800, 0),
+         color.new(#FF0000, 0),
+         color.new(#FFEB3B, 0),
+         color.new(#2196F3, 0),
+         color.new(#4CAF50, 0),
+         color.new(#4CAF50, 20),
+         color.new(#4CAF50, 40),
+         color.new(#4CAF50, 60),
+         color.new(#4CAF50, 80))
+
+    // 선 굵기 배열
+    widths = array.from(1, 2, 1, 2, 1, 1, 1, 1, 1)
+
+    // 선 스타일 배열 (0=solid, 1=dashed, 2=dotted)
+    styles = array.from(
+         line.style_dashed,
+         line.style_solid,
+         line.style_dashed,
+         line.style_solid,
+         line.style_dotted,
+         line.style_dotted,
+         line.style_dotted,
+         line.style_dotted,
+         line.style_dotted)
+
+    // 라벨 이름
+    labels = array.from("+1 위", "상단선 (A-B)", "중간선", "하단선 (C)", "-1", "-2", "-3", "-4", "-5")
+
+    for i = 0 to array.size(offsets) - 1
+        ofs = array.get(offsets, i) * unit
+        c = array.get(colors, i)
+        w = array.get(widths, i)
+        s = array.get(styles, i)
+
+        line.new(t1, p1 - ofs, t2, p2 - ofs,
+             xloc=xloc.bar_time,
+             extend=extend.both,
+             color=c,
+             width=w,
+             style=s)
+
+        // 우측 끝에 라벨 표시
+        label.new(t2, p2 - ofs,
+             text=array.get(labels, i),
+             xloc=xloc.bar_time,
+             style=label.style_label_left,
+             color=color.new(c, 80),
+             textcolor=c,
+             size=size.small)
