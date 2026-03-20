@@ -4,7 +4,7 @@
 strategy("이평매매v2 백테스트", overlay=true, default_qty_type=strategy.percent_of_equity,
          initial_capital=10000, commission_type=strategy.commission.percent,
          commission_value=0.04, slippage=1, pyramiding=4,
-         calc_on_every_tick=false, max_lines_count=500, max_labels_count=500)
+         calc_on_every_tick=false)
 
 // ╔════════════════════════════════════════════════════════════╗
 // ║  백테스트 기간 (에센셜 플랜용)                               ║
@@ -35,7 +35,6 @@ i_mode = input.string("롱", "매매 방향", options=["롱", "숏", "단타"], 
 // ║  이평매매v2 지표 — ZLSMA 150                               ║
 // ╚════════════════════════════════════════════════════════════╝
 grpZ = "ZLSMA"
-shZLS  = input.bool(true,  "Show ZLSMA", group=grpZ)
 lenZLS = input.int(150, "ZLSMA Length", minval=1, group=grpZ)
 offZLS = input.int(0,   "ZLSMA Offset", group=grpZ)
 srcZLS = input.source(close, "ZLSMA Source", group=grpZ)
@@ -51,7 +50,6 @@ zlsma = zlsma_func(srcZLS, lenZLS, offZLS)
 // ║  이평매매v2 지표 — ALMA 50                                 ║
 // ╚════════════════════════════════════════════════════════════╝
 grpA = "ALMA"
-shALMA  = input.bool(true, "Show ALMA", group=grpA)
 lenALMA = input.int(50, "ALMA Length", minval=1, group=grpA)
 offALMA = input.float(0.9, "ALMA Offset", step=0.01, group=grpA)
 sigALMA = input.float(6.0, "ALMA Sigma", group=grpA)
@@ -406,47 +404,8 @@ alma_cross_up = ta.crossover(alma50, zlsma)
 alma_cross_dn = ta.crossunder(alma50, zlsma)
 
 // ╔════════════════════════════════════════════════════════════╗
-// ║  시각화 — 이평매매v2 색상 체계 반영                         ║
+// ║  시각화 — 전략 시그널만 표시 (지표는 별도 인디케이터 사용)   ║
 // ╚════════════════════════════════════════════════════════════╝
-grpCol = "MA 색상"
-colZLS  = input.color(color.green,             "ZLSMA150", group=grpCol)
-colVWMA = input.color(color.black,             "VWMA150",  group=grpCol)
-colALMA = input.color(color.rgb(255,105,180),  "ALMA50",   group=grpCol)
-colHMA  = input.color(color.white,             "HMA34",    group=grpCol)
-
-grpBBCol = "BB 색상"
-bbColUpper = input.color(color.new(color.red, 0),   "BB Upper", group=grpBBCol)
-bbColMid   = input.color(color.new(color.blue, 0),  "BB Mid",   group=grpBBCol)
-bbColLower = input.color(color.new(color.green, 0), "BB Lower", group=grpBBCol)
-bbColFill  = input.color(color.new(color.rgb(33,150,243), 95), "BB Fill", group=grpBBCol)
-
-// ── 이평매매v2 지표 ──
-plot(shZLS ? zlsma : na, "ZLSMA150", colZLS, 2)
-plot(vwma150,            "VWMA150",  colVWMA, 2)
-plot(shALMA ? alma50 : na, "ALMA50", colALMA, 2)
-plot(hma34,              "HMA34",    colHMA, 2)
-
-// ── BB ──
-pBBU = plot(bbUpper, "BB Upper", bbColUpper, 1, offset=bbOff)
-pBBM = plot(bbBasis, "BB Mid",   bbColMid,   1, offset=bbOff)
-pBBL = plot(bbLower, "BB Lower", bbColLower, 1, offset=bbOff)
-fill(pBBU, pBBL, color=bbColFill, title="BB Fill")
-
-// ── 7EMA ──
-plot(ema_21,  "EMA21",  color.yellow, 2)
-plot(ema_55,  "EMA55",  color.lime,   2)
-plot(ema_100, "EMA100", color.aqua,   2)
-plot(ema_200, "EMA200", color.purple, 2)
-plot(ema_300, "EMA300", color.aqua,   1)
-plot(ema_400, "EMA400", color.purple, 1)
-
-// ── 5SMA ──
-plot(sma_11,  "SMA11",  color.orange, 2)
-plot(sma_23,  "SMA23",  color.purple, 2)
-plot(sma_25,  "SMA25",  color.green,  2)
-plot(sma_39,  "SMA39",  color.red,    2)
-plot(sma_200, "SMA200", color.yellow, 2)
-
 // ── 백테스트 구간 배경 ──
 bgcolor(in_date_range ? color.new(color.blue, 95) : na, title="백테스트 구간")
 
@@ -467,26 +426,6 @@ plotshape(alma_cross_dn, style=shape.diamond, location=location.belowbar, color=
 bgcolor(vol_surge ? color.new(color.yellow, 90) : na, title="거래량 서지")
 plot(in_long  and pattern_sl_price > 0 ? pattern_sl_price : na, "SL Long",  color.red, 2, plot.style_cross)
 plot(in_short and pattern_sl_price > 0 ? pattern_sl_price : na, "SL Short", color.red, 2, plot.style_cross)
-
-// ── 우측 이름 라벨 ──
-var label lblZLS  = na
-var label lblVWMA = na
-var label lblALMA = na
-var label lblHMA  = na
-
-if barstate.islast
-    if not na(lblZLS)
-        label.delete(lblZLS)
-    if not na(lblVWMA)
-        label.delete(lblVWMA)
-    if not na(lblALMA)
-        label.delete(lblALMA)
-    if not na(lblHMA)
-        label.delete(lblHMA)
-    lblZLS  := label.new(bar_index, zlsma,  "ZLSMA150", style=label.style_label_right, textcolor=color.white, color=color.new(colZLS, 75),  size=size.tiny)
-    lblVWMA := label.new(bar_index, vwma150, "VWMA150", style=label.style_label_right, textcolor=color.white, color=color.new(colVWMA, 75), size=size.tiny)
-    lblALMA := label.new(bar_index, alma50,  "ALMA50",  style=label.style_label_right, textcolor=color.white, color=color.new(colALMA, 75), size=size.tiny)
-    lblHMA  := label.new(bar_index, hma34,   "HMA34",   style=label.style_label_right, textcolor=color.black, color=color.new(colHMA, 75),  size=size.tiny)
 
 // ╔════════════════════════════════════════════════════════════╗
 // ║  알림                                                      ║
