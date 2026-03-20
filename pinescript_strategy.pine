@@ -9,6 +9,14 @@ strategy("자동매매 백테스트", overlay=true, default_qty_type=strategy.pe
 // ============================================================
 // 입력값
 // ============================================================
+// -- 백테스트 기간 (에센셜 플랜용 코드 내 날짜 제한) --
+i_start_year  = input.int(2025, "시작 연도")
+i_start_month = input.int(8,    "시작 월", minval=1, maxval=12)
+i_start_day   = input.int(1,    "시작 일", minval=1, maxval=31)
+i_end_year    = input.int(2026, "종료 연도")
+i_end_month   = input.int(3,    "종료 월", minval=1, maxval=12)
+i_end_day     = input.int(20,   "종료 일", minval=1, maxval=31)
+
 // -- 방향 설정 --
 i_mode = input.string("롱", "매매 방향", options=["롱", "숏", "단타"])
 
@@ -46,6 +54,20 @@ i_max_position   = input.float(80, "최대 포지션 (%)")
 // -- TP/SL --
 i_tp1_pct = input.float(30, "TP1 청산 비율 (%)")
 i_tp2_pct = input.float(30, "TP2 청산 비율 (%)")
+
+// ============================================================
+// 백테스트 기간 필터
+// ============================================================
+start_time = timestamp(i_start_year, i_start_month, i_start_day, 0, 0)
+end_time   = timestamp(i_end_year,   i_end_month,   i_end_day,   23, 59)
+in_date_range = time >= start_time and time <= end_time
+
+// 기간 밖이면 포지션 전량 청산
+if not in_date_range and strategy.position_size != 0
+    strategy.close_all(comment="기간종료_전량청산")
+
+// 배경색으로 백테스트 구간 표시
+bgcolor(in_date_range ? color.new(color.blue, 95) : na, title="백테스트 구간")
 
 // ============================================================
 // 지표 계산
@@ -169,7 +191,7 @@ close_below_bb4h   = close < bb4h_upper
 // ============================================================
 // 매수 조건 (롱)
 // ============================================================
-long_common = zlsma_positive and vol_surge and bullish_pattern
+long_common = in_date_range and zlsma_positive and vol_surge and bullish_pattern
 
 // 조건1: EMA25 터치 (선진입 10%)
 long_cond1 = long_common and touches_ema25 and close_above_ema25
@@ -186,7 +208,7 @@ long_cond4 = long_common and touches_bb4h_lower and close_above_bb4h
 // ============================================================
 // 매도 조건 (숏)
 // ============================================================
-short_common = zlsma_negative and vol_surge and bearish_pattern
+short_common = in_date_range and zlsma_negative and vol_surge and bearish_pattern
 
 // 조건1: EMA25 터치 (선진입 10%)
 short_cond1 = short_common and touches_ema25 and close_below_ema25
