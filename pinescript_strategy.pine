@@ -410,13 +410,13 @@ alma_cross_dn = ta.crossunder(alma50, zlsma)
 bgcolor(in_date_range ? color.new(color.blue, 95) : na, title="백테스트 구간")
 
 // ── 진입 시그널 ──
-plotshape(allow_long and long_cond3,                               style=shape.triangleup,   location=location.belowbar, color=color.green, size=size.normal, title="L_EMA55+VWMA")
-plotshape(allow_long and long_cond2 and not long_cond3,            style=shape.triangleup,   location=location.belowbar, color=color.lime,  size=size.small,  title="L_EMA55")
-plotshape(allow_long and long_cond1 and not long_cond2 and not long_cond3, style=shape.triangleup, location=location.belowbar, color=color.aqua, size=size.tiny, title="L_EMA21")
+plotshape(allow_long and long_cond3,                               style=shape.triangleup,   location=location.belowbar, color=color.green, size=size.normal, title="L_EMA55+VWMA", text="롱")
+plotshape(allow_long and long_cond2 and not long_cond3,            style=shape.triangleup,   location=location.belowbar, color=color.lime,  size=size.small,  title="L_EMA55",      text="롱")
+plotshape(allow_long and long_cond1 and not long_cond2 and not long_cond3, style=shape.triangleup, location=location.belowbar, color=color.aqua, size=size.tiny, title="L_EMA21", text="롱")
 
-plotshape(allow_short and short_cond3,                              style=shape.triangledown, location=location.abovebar, color=color.red,    size=size.normal, title="S_EMA55+VWMA")
-plotshape(allow_short and short_cond2 and not short_cond3,          style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.small,  title="S_EMA55")
-plotshape(allow_short and short_cond1 and not short_cond2 and not short_cond3, style=shape.triangledown, location=location.abovebar, color=color.yellow, size=size.tiny, title="S_EMA21")
+plotshape(allow_short and short_cond3,                              style=shape.triangledown, location=location.abovebar, color=color.red,    size=size.normal, title="S_EMA55+VWMA", text="숏")
+plotshape(allow_short and short_cond2 and not short_cond3,          style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.small,  title="S_EMA55",      text="숏")
+plotshape(allow_short and short_cond1 and not short_cond2 and not short_cond3, style=shape.triangledown, location=location.abovebar, color=color.yellow, size=size.tiny, title="S_EMA21", text="숏")
 
 // ── ALMA 교차 ──
 plotshape(alma_cross_up, style=shape.diamond, location=location.abovebar, color=color.teal,   size=size.tiny, title="ALMA↑", text="ALMA↑")
