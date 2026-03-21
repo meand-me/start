@@ -239,6 +239,7 @@ short_cond4 = short_common and touches_bb4h_upper and close_below_bb4h
 // ║  포지션 추적                                               ║
 // ╚════════════════════════════════════════════════════════════╝
 var float total_invested_pct = 0.0
+var float total_closed_pct  = 0.0
 var bool  tp1_done = false
 var bool  tp2_done = false
 var float pattern_sl_price = 0.0
@@ -250,6 +251,7 @@ no_position = strategy.position_size == 0
 
 if no_position
     total_invested_pct := 0.0
+    total_closed_pct  := 0.0
     tp1_done := false
     tp2_done := false
     pattern_sl_price := 0.0
