@@ -168,94 +168,196 @@ signal_alloc(_cap, _signal, _existing) =>
 // === Entry logic ===
 currentInvestedPct = math.abs(strategy.position_size) * close / strategy.equity * 100.0
 
-enter_trade(_dir, _tf, _signal, _allocPct, _patternStop, _ema50) =>
-    if _allocPct > 0
-        id = (_dir == strategy.long ? "L_" : "S_") + _tf + "_" + _signal + "_" + str.tostring(bar_index)
-        strategy.entry(id, _dir, qty=entry_qty_from_equity_pct(_allocPct))
-        if strategy.position_size == 0
-            entryTf        := _tf
-            entrySignal    := _signal
-            patternStop    := _patternStop
-            tfEma50AtEntry := _ema50
-            baseCapPct     := cap_for_tf(_tf)
-            nextCapPct     := baseCapPct
-    true
+// Stage entry parameters (v6: cannot modify global vars inside functions)
+_e_alloc  = 0.0
+_e_dir    = strategy.long
+_e_tf     = ""
+_e_signal = ""
+float _e_stop  = na
+float _e_ema50 = na
 
 if strategy.position_size == 0
     if long15Ready or long60Ready or long240Ready or longDReady
         if long15Ready and long15_vwmaTouch
-            alloc = signal_alloc(30.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.long, "15", "VWMA", alloc, long15_patternLow, long15_ema50)
+            _e_alloc := signal_alloc(30.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "15"
+            _e_signal := "VWMA"
+            _e_stop := long15_patternLow
+            _e_ema50 := long15_ema50
         else if long15Ready and long15_ema25Touch
-            alloc = signal_alloc(30.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.long, "15", "EMA25", alloc, long15_patternLow, long15_ema50)
+            _e_alloc := signal_alloc(30.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "15"
+            _e_signal := "EMA25"
+            _e_stop := long15_patternLow
+            _e_ema50 := long15_ema50
         else if long15Ready and long15_ema50Touch
-            alloc = signal_alloc(30.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.long, "15", "EMA50", alloc, long15_patternLow, long15_ema50)
+            _e_alloc := signal_alloc(30.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "15"
+            _e_signal := "EMA50"
+            _e_stop := long15_patternLow
+            _e_ema50 := long15_ema50
         else if long60Ready and long60_vwmaTouch
-            alloc = signal_alloc(50.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.long, "60", "VWMA", alloc, long60_patternLow, long60_ema50)
+            _e_alloc := signal_alloc(50.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "60"
+            _e_signal := "VWMA"
+            _e_stop := long60_patternLow
+            _e_ema50 := long60_ema50
         else if long60Ready and long60_ema25Touch
-            alloc = signal_alloc(50.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.long, "60", "EMA25", alloc, long60_patternLow, long60_ema50)
+            _e_alloc := signal_alloc(50.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "60"
+            _e_signal := "EMA25"
+            _e_stop := long60_patternLow
+            _e_ema50 := long60_ema50
         else if long60Ready and long60_ema50Touch
-            alloc = signal_alloc(50.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.long, "60", "EMA50", alloc, long60_patternLow, long60_ema50)
+            _e_alloc := signal_alloc(50.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "60"
+            _e_signal := "EMA50"
+            _e_stop := long60_patternLow
+            _e_ema50 := long60_ema50
         else if long240Ready and long240_vwmaTouch
-            alloc = signal_alloc(80.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.long, "240", "VWMA", alloc, long240_patternLow, long240_ema50)
+            _e_alloc := signal_alloc(80.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "240"
+            _e_signal := "VWMA"
+            _e_stop := long240_patternLow
+            _e_ema50 := long240_ema50
         else if long240Ready and long240_ema25Touch
-            alloc = signal_alloc(80.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.long, "240", "EMA25", alloc, long240_patternLow, long240_ema50)
+            _e_alloc := signal_alloc(80.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "240"
+            _e_signal := "EMA25"
+            _e_stop := long240_patternLow
+            _e_ema50 := long240_ema50
         else if long240Ready and long240_ema50Touch
-            alloc = signal_alloc(80.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.long, "240", "EMA50", alloc, long240_patternLow, long240_ema50)
+            _e_alloc := signal_alloc(80.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "240"
+            _e_signal := "EMA50"
+            _e_stop := long240_patternLow
+            _e_ema50 := long240_ema50
         else if longDReady and longD_vwmaTouch
-            alloc = signal_alloc(100.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.long, "D", "VWMA", alloc, longD_patternLow, longD_ema50)
+            _e_alloc := signal_alloc(100.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "D"
+            _e_signal := "VWMA"
+            _e_stop := longD_patternLow
+            _e_ema50 := longD_ema50
         else if longDReady and longD_ema25Touch
-            alloc = signal_alloc(100.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.long, "D", "EMA25", alloc, longD_patternLow, longD_ema50)
+            _e_alloc := signal_alloc(100.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "D"
+            _e_signal := "EMA25"
+            _e_stop := longD_patternLow
+            _e_ema50 := longD_ema50
         else if longDReady and longD_ema50Touch
-            alloc = signal_alloc(100.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.long, "D", "EMA50", alloc, longD_patternLow, longD_ema50)
+            _e_alloc := signal_alloc(100.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.long
+            _e_tf := "D"
+            _e_signal := "EMA50"
+            _e_stop := longD_patternLow
+            _e_ema50 := longD_ema50
     else if short15Ready or short60Ready or short240Ready or shortDReady
         if short15Ready and short15_vwmaTouch
-            alloc = signal_alloc(30.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.short, "15", "VWMA", alloc, short15_patternHigh, short15_ema50)
+            _e_alloc := signal_alloc(30.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "15"
+            _e_signal := "VWMA"
+            _e_stop := short15_patternHigh
+            _e_ema50 := short15_ema50
         else if short15Ready and short15_ema25Touch
-            alloc = signal_alloc(30.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.short, "15", "EMA25", alloc, short15_patternHigh, short15_ema50)
+            _e_alloc := signal_alloc(30.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "15"
+            _e_signal := "EMA25"
+            _e_stop := short15_patternHigh
+            _e_ema50 := short15_ema50
         else if short15Ready and short15_ema50Touch
-            alloc = signal_alloc(30.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.short, "15", "EMA50", alloc, short15_patternHigh, short15_ema50)
+            _e_alloc := signal_alloc(30.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "15"
+            _e_signal := "EMA50"
+            _e_stop := short15_patternHigh
+            _e_ema50 := short15_ema50
         else if short60Ready and short60_vwmaTouch
-            alloc = signal_alloc(50.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.short, "60", "VWMA", alloc, short60_patternHigh, short60_ema50)
+            _e_alloc := signal_alloc(50.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "60"
+            _e_signal := "VWMA"
+            _e_stop := short60_patternHigh
+            _e_ema50 := short60_ema50
         else if short60Ready and short60_ema25Touch
-            alloc = signal_alloc(50.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.short, "60", "EMA25", alloc, short60_patternHigh, short60_ema50)
+            _e_alloc := signal_alloc(50.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "60"
+            _e_signal := "EMA25"
+            _e_stop := short60_patternHigh
+            _e_ema50 := short60_ema50
         else if short60Ready and short60_ema50Touch
-            alloc = signal_alloc(50.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.short, "60", "EMA50", alloc, short60_patternHigh, short60_ema50)
+            _e_alloc := signal_alloc(50.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "60"
+            _e_signal := "EMA50"
+            _e_stop := short60_patternHigh
+            _e_ema50 := short60_ema50
         else if short240Ready and short240_vwmaTouch
-            alloc = signal_alloc(80.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.short, "240", "VWMA", alloc, short240_patternHigh, short240_ema50)
+            _e_alloc := signal_alloc(80.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "240"
+            _e_signal := "VWMA"
+            _e_stop := short240_patternHigh
+            _e_ema50 := short240_ema50
         else if short240Ready and short240_ema25Touch
-            alloc = signal_alloc(80.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.short, "240", "EMA25", alloc, short240_patternHigh, short240_ema50)
+            _e_alloc := signal_alloc(80.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "240"
+            _e_signal := "EMA25"
+            _e_stop := short240_patternHigh
+            _e_ema50 := short240_ema50
         else if short240Ready and short240_ema50Touch
-            alloc = signal_alloc(80.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.short, "240", "EMA50", alloc, short240_patternHigh, short240_ema50)
+            _e_alloc := signal_alloc(80.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "240"
+            _e_signal := "EMA50"
+            _e_stop := short240_patternHigh
+            _e_ema50 := short240_ema50
         else if shortDReady and shortD_vwmaTouch
-            alloc = signal_alloc(100.0, "VWMA", currentInvestedPct)
-            enter_trade(strategy.short, "D", "VWMA", alloc, shortD_patternHigh, shortD_ema50)
+            _e_alloc := signal_alloc(100.0, "VWMA", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "D"
+            _e_signal := "VWMA"
+            _e_stop := shortD_patternHigh
+            _e_ema50 := shortD_ema50
         else if shortDReady and shortD_ema25Touch
-            alloc = signal_alloc(100.0, "EMA25", currentInvestedPct)
-            enter_trade(strategy.short, "D", "EMA25", alloc, shortD_patternHigh, shortD_ema50)
+            _e_alloc := signal_alloc(100.0, "EMA25", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "D"
+            _e_signal := "EMA25"
+            _e_stop := shortD_patternHigh
+            _e_ema50 := shortD_ema50
         else if shortDReady and shortD_ema50Touch
-            alloc = signal_alloc(100.0, "EMA50", currentInvestedPct)
-            enter_trade(strategy.short, "D", "EMA50", alloc, shortD_patternHigh, shortD_ema50)
+            _e_alloc := signal_alloc(100.0, "EMA50", currentInvestedPct)
+            _e_dir := strategy.short
+            _e_tf := "D"
+            _e_signal := "EMA50"
+            _e_stop := shortD_patternHigh
+            _e_ema50 := shortD_ema50
+
+// Process staged entry at global scope (where global var modification is allowed)
+if _e_alloc > 0 and strategy.position_size == 0
+    _e_id = (_e_dir == strategy.long ? "L_" : "S_") + _e_tf + "_" + _e_signal + "_" + str.tostring(bar_index)
+    strategy.entry(_e_id, _e_dir, qty=entry_qty_from_equity_pct(_e_alloc))
+    entryTf        := _e_tf
+    entrySignal    := _e_signal
+    patternStop    := _e_stop
+    tfEma50AtEntry := _e_ema50
+    baseCapPct     := cap_for_tf(_e_tf)
+    nextCapPct     := baseCapPct
 
 // Add-on scaling when higher timeframe joins.
 if strategy.position_size > 0 and current_cap_long > currentInvestedPct
