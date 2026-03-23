@@ -365,8 +365,12 @@ if _e_alloc > 0 and strategy.position_size == 0
         label.new(bar_index, low, _lbl, style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
     else
         label.new(bar_index, high, _lbl, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
-    line.new(bar_index - 2, _entryPrice, bar_index + 3, _entryPrice, color=_lineCol, width=3, style=line.style_solid)
-    label.new(bar_index + 4, _entryPrice, str.tostring(_entryPrice, "#.#"), style=label.style_none, textcolor=_lineCol, size=size.normal)
+    line.new(bar_index - 1, _entryPrice, bar_index + 1, _entryPrice, color=_lineCol, width=3, style=line.style_solid)
+    label.new(bar_index + 2, _entryPrice, str.tostring(_entryPrice, "#.#"), style=label.style_none, textcolor=_lineCol, size=size.normal)
+    // Stop loss price marker
+    if not na(_e_stop)
+        line.new(bar_index - 1, _e_stop, bar_index + 1, _e_stop, color=color.orange, width=2, style=line.style_solid)
+        label.new(bar_index + 2, _e_stop, str.tostring(_e_stop, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
 
 // Add-on scaling when higher timeframe joins.
 _scaled_long = false
