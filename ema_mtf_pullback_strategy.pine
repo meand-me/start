@@ -11,7 +11,7 @@ vwmaLen  = input.int(150, "VWMA Length",  minval=1, group=grpCore)
 zlsmaLen = input.int(150, "ZLSMA Length", minval=1, group=grpCore)
 
 grpBB  = "Bollinger Band"
-bbLen  = input.int(20,    "BB Length", minval=1,   group=grpBB)
+bbLen  = input.int(25,    "BB Length", minval=1,   group=grpBB)
 bbMult = input.float(2.0, "BB Mult",  minval=0.1, group=grpBB)
 
 grpRisk = "Risk"
