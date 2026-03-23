@@ -367,10 +367,6 @@ if _e_alloc > 0 and strategy.position_size == 0
         label.new(bar_index, high, _lbl, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
     line.new(bar_index - 1, _entryPrice, bar_index + 1, _entryPrice, color=_lineCol, width=3, style=line.style_solid)
     label.new(bar_index + 2, _entryPrice, str.tostring(_entryPrice, "#.#"), style=label.style_none, textcolor=_lineCol, size=size.normal)
-    // Stop loss price marker
-    if not na(_e_stop)
-        line.new(bar_index - 1, _e_stop, bar_index + 1, _e_stop, color=color.orange, width=2, style=line.style_solid)
-        label.new(bar_index + 2, _e_stop, str.tostring(_e_stop, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
 
 // Add-on scaling when higher timeframe joins.
 _scaled_long = false
@@ -478,8 +474,11 @@ if strategy.position_size > 0
     stop3 = not entry_order_still_ok_long
     stop4 = low <= bb15L
     if stop1 or stop2 or stop3 or stop4
+        _stopPrice = stop1 ? patternStop : stop4 ? bb15L : stop2 ? tfEma50AtEntry * (1 - nearPct) : close
         strategy.close_all(comment="Long stop")
         label.new(bar_index, high, "STOP\n-100%", style=label.style_label_down, color=color.maroon, textcolor=color.white, size=size.small)
+        line.new(bar_index - 1, _stopPrice, bar_index + 1, _stopPrice, color=color.orange, width=2, style=line.style_solid)
+        label.new(bar_index + 2, _stopPrice, str.tostring(_stopPrice, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
 
 if strategy.position_size < 0
     stop1 = not na(patternStop) and high > patternStop
@@ -487,7 +486,10 @@ if strategy.position_size < 0
     stop3 = not entry_order_still_ok_short
     stop4 = high >= bb15U
     if stop1 or stop2 or stop3 or stop4
+        _stopPrice = stop1 ? patternStop : stop4 ? bb15U : stop2 ? tfEma50AtEntry * (1 + nearPct) : close
         strategy.close_all(comment="Short stop")
         label.new(bar_index, low, "STOP\n-100%", style=label.style_label_up, color=color.maroon, textcolor=color.white, size=size.small)
+        line.new(bar_index - 1, _stopPrice, bar_index + 1, _stopPrice, color=color.orange, width=2, style=line.style_solid)
+        label.new(bar_index + 2, _stopPrice, str.tostring(_stopPrice, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
 
 // No indicator plots — use external indicator for chart visuals
