@@ -1,0 +1,357 @@
+//@version=6
+strategy("EMA MTF Pullback Strategy vFinal", overlay=true, pyramiding=20, initial_capital=10000, default_qty_type=strategy.fixed, commission_type=strategy.commission.percent, commission_value=0.04)
+
+// === Inputs ===
+grpCore = "Core"
+ema5Len  = input.int(5,   "EMA 5",       minval=1, group=grpCore)
+ema15Len = input.int(15,  "EMA 15",      minval=1, group=grpCore)
+ema25Len = input.int(25,  "EMA 25",      minval=1, group=grpCore)
+ema50Len = input.int(50,  "EMA 50",      minval=1, group=grpCore)
+vwmaLen  = input.int(150, "VWMA Length",  minval=1, group=grpCore)
+zlsmaLen = input.int(150, "ZLSMA Length", minval=1, group=grpCore)
+
+grpBB  = "Bollinger Band"
+bbLen  = input.int(20,    "BB Length", minval=1,   group=grpBB)
+bbMult = input.float(2.0, "BB Mult",  minval=0.1, group=grpBB)
+
+grpRisk = "Risk"
+nearPct = input.float(0.3, "Near / Stop Percent", minval=0.01, step=0.01, group=grpRisk) / 100.0
+
+// === Helpers ===
+zlsma_func(_src, _len) =>
+    lsma1 = ta.linreg(_src, _len, 0)
+    lsma2 = ta.linreg(lsma1, _len, 0)
+    lsma1 + (lsma1 - lsma2)
+
+bb_upper(_src, _len, _mult) =>
+    basis = ta.sma(_src, _len)
+    basis + ta.stdev(_src, _len) * _mult
+
+bb_lower(_src, _len, _mult) =>
+    basis = ta.sma(_src, _len)
+    basis - ta.stdev(_src, _len) * _mult
+
+body_size(_o, _c) => math.abs(_c - _o)
+range_size(_h, _l) => _h - _l
+lower_wick(_o, _c, _l) => math.min(_o, _c) - _l
+upper_wick(_o, _c, _h) => _h - math.max(_o, _c)
+
+is_long_hammer(_o, _h, _l, _c) =>
+    body = body_size(_o, _c)
+    lw   = lower_wick(_o, _c, _l)
+    body > 0 and lw >= body
+
+is_short_hammer(_o, _h, _l, _c) =>
+    body = body_size(_o, _c)
+    uw   = upper_wick(_o, _c, _h)
+    body > 0 and uw >= body
+
+is_long_engulfing(_o, _h, _l, _c) =>
+    prevBody = body_size(_o[1], _c[1])
+    currBody = body_size(_o, _c)
+    _c > _o and _c[1] < _o[1] and _o <= _c[1] and _c >= _o[1] and currBody >= prevBody * 1.5
+
+is_short_engulfing(_o, _h, _l, _c) =>
+    prevBody = body_size(_o[1], _c[1])
+    currBody = body_size(_o, _c)
+    _c < _o and _c[1] > _o[1] and _o >= _c[1] and _c <= _o[1] and currBody >= prevBody * 1.5
+
+bull_streak_3(_o, _c) => _c > _o and _c[1] > _o[1] and _c[2] > _o[2]
+bear_streak_3(_o, _c) => _c < _o and _c[1] < _o[1] and _c[2] < _o[2]
+
+near_or_touch(_price, _level) => math.abs(_price - _level) / _level <= nearPct
+
+tail_touch_long(_o, _c, _l, _level)  => _l <= _level and math.min(_o, _c) > _level
+tail_touch_short(_o, _c, _h, _level) => _h >= _level and math.max(_o, _c) < _level
+
+near_tail_long(_o, _c, _l, _level)  => tail_touch_long(_o, _c, _l, _level) or (math.min(_o, _c) > _level and near_or_touch(_l, _level))
+near_tail_short(_o, _c, _h, _level) => tail_touch_short(_o, _c, _h, _level) or (math.max(_o, _c) < _level and near_or_touch(_h, _level))
+
+entry_qty_from_equity_pct(_pct) =>
+    (strategy.equity * (_pct / 100.0)) / close
+
+// === Timeframe engine ===
+calc_long_setup() =>
+    ema5  = ta.ema(close, ema5Len)
+    ema15 = ta.ema(close, ema15Len)
+    ema25 = ta.ema(close, ema25Len)
+    ema50 = ta.ema(close, ema50Len)
+    vwma  = ta.vwma(close, vwmaLen)
+    zlsma = zlsma_func(close, zlsmaLen)
+    bbU   = bb_upper(close, bbLen, bbMult)
+    bbL   = bb_lower(close, bbLen, bbMult)
+    ordered    = ema5 > ema15 and ema15 > ema25 and ema25 > ema50
+    candleOk   = is_long_hammer(open, high, low, close) or is_long_engulfing(open, high, low, close)
+    streakOk   = bull_streak_3(open, close)
+    ema25Touch = near_tail_long(open, close, low, ema25)
+    ema50Touch = near_tail_long(open, close, low, ema50)
+    vwmaTouch  = near_tail_long(open, close, low, vwma)
+    [ordered, candleOk, streakOk, ema25Touch, ema50Touch, vwmaTouch, ema50, vwma, zlsma, bbU, bbL, low]
+
+calc_short_setup() =>
+    ema5  = ta.ema(close, ema5Len)
+    ema15 = ta.ema(close, ema15Len)
+    ema25 = ta.ema(close, ema25Len)
+    ema50 = ta.ema(close, ema50Len)
+    vwma  = ta.vwma(close, vwmaLen)
+    zlsma = zlsma_func(close, zlsmaLen)
+    bbU   = bb_upper(close, bbLen, bbMult)
+    bbL   = bb_lower(close, bbLen, bbMult)
+    ordered    = ema5 < ema15 and ema15 < ema25 and ema25 < ema50
+    candleOk   = is_short_hammer(open, high, low, close) or is_short_engulfing(open, high, low, close)
+    streakOk   = bear_streak_3(open, close)
+    ema25Touch = near_tail_short(open, close, high, ema25)
+    ema50Touch = near_tail_short(open, close, high, ema50)
+    vwmaTouch  = near_tail_short(open, close, high, vwma)
+    [ordered, candleOk, streakOk, ema25Touch, ema50Touch, vwmaTouch, ema50, vwma, zlsma, bbU, bbL, high]
+
+[long15_ordered,  long15_candle,  long15_streak,  long15_ema25Touch,  long15_ema50Touch,  long15_vwmaTouch,  long15_ema50,  long15_vwma,  long15_zlsma,  long15_bbU,  long15_bbL,  long15_patternLow]  = request.security(syminfo.tickerid, "15",  calc_long_setup(),  lookahead=barmerge.lookahead_off)
+[long60_ordered,  long60_candle,  long60_streak,  long60_ema25Touch,  long60_ema50Touch,  long60_vwmaTouch,  long60_ema50,  long60_vwma,  long60_zlsma,  long60_bbU,  long60_bbL,  long60_patternLow]  = request.security(syminfo.tickerid, "60",  calc_long_setup(),  lookahead=barmerge.lookahead_off)
+[long240_ordered, long240_candle, long240_streak, long240_ema25Touch, long240_ema50Touch, long240_vwmaTouch, long240_ema50, long240_vwma, long240_zlsma, long240_bbU, long240_bbL, long240_patternLow] = request.security(syminfo.tickerid, "240", calc_long_setup(),  lookahead=barmerge.lookahead_off)
+[longD_ordered,   longD_candle,   longD_streak,   longD_ema25Touch,   longD_ema50Touch,   longD_vwmaTouch,   longD_ema50,   longD_vwma,   longD_zlsma,   longD_bbU,   longD_bbL,   longD_patternLow]   = request.security(syminfo.tickerid, "D",   calc_long_setup(),  lookahead=barmerge.lookahead_off)
+
+[short15_ordered,  short15_candle,  short15_streak,  short15_ema25Touch,  short15_ema50Touch,  short15_vwmaTouch,  short15_ema50,  short15_vwma,  short15_zlsma,  short15_bbU,  short15_bbL,  short15_patternHigh]  = request.security(syminfo.tickerid, "15",  calc_short_setup(), lookahead=barmerge.lookahead_off)
+[short60_ordered,  short60_candle,  short60_streak,  short60_ema25Touch,  short60_ema50Touch,  short60_vwmaTouch,  short60_ema50,  short60_vwma,  short60_zlsma,  short60_bbU,  short60_bbL,  short60_patternHigh]  = request.security(syminfo.tickerid, "60",  calc_short_setup(), lookahead=barmerge.lookahead_off)
+[short240_ordered, short240_candle, short240_streak, short240_ema25Touch, short240_ema50Touch, short240_vwmaTouch, short240_ema50, short240_vwma, short240_zlsma, short240_bbU, short240_bbL, short240_patternHigh] = request.security(syminfo.tickerid, "240", calc_short_setup(), lookahead=barmerge.lookahead_off)
+[shortD_ordered,   shortD_candle,   shortD_streak,   shortD_ema25Touch,   shortD_ema50Touch,   shortD_vwmaTouch,   shortD_ema50,   shortD_vwma,   shortD_zlsma,   shortD_bbU,   shortD_bbL,   shortD_patternHigh]   = request.security(syminfo.tickerid, "D",   calc_short_setup(), lookahead=barmerge.lookahead_off)
+
+// 15m BB for shared stop / TP
+bb15U = long15_bbU
+bb15L = long15_bbL
+
+long_tf_ready(_ordered, _candle, _streak)  => _ordered and _candle and _streak
+short_tf_ready(_ordered, _candle, _streak) => _ordered and _candle and _streak
+
+long15Ready  = long_tf_ready(long15_ordered,  long15_candle,  long15_streak)
+long60Ready  = long_tf_ready(long60_ordered,  long60_candle,  long60_streak)
+long240Ready = long_tf_ready(long240_ordered, long240_candle, long240_streak)
+longDReady   = long_tf_ready(longD_ordered,   longD_candle,   longD_streak)
+
+short15Ready  = short_tf_ready(short15_ordered,  short15_candle,  short15_streak)
+short60Ready  = short_tf_ready(short60_ordered,  short60_candle,  short60_streak)
+short240Ready = short_tf_ready(short240_ordered, short240_candle, short240_streak)
+shortDReady   = short_tf_ready(shortD_ordered,   shortD_candle,   shortD_streak)
+
+// === Position state ===
+var string entryTf           = ""
+var string entrySignal       = ""
+var float  patternStop       = na
+var float  tfEma50AtEntry    = na
+var float  baseCapPct        = 0.0
+var float  nextCapPct        = 0.0
+var bool   tpA_done          = false
+var bool   tpB_done          = false
+var bool   tpC_done          = false
+var bool   runner_alert_sent = false
+
+if strategy.position_size == 0
+    entryTf           := ""
+    entrySignal       := ""
+    patternStop       := na
+    tfEma50AtEntry    := na
+    baseCapPct        := 0.0
+    nextCapPct        := 0.0
+    tpA_done          := false
+    tpB_done          := false
+    tpC_done          := false
+    runner_alert_sent := false
+
+cap_for_tf(_tf) =>
+    _tf == "15" ? 30.0 : _tf == "60" ? 50.0 : _tf == "240" ? 80.0 : 100.0
+
+current_cap_long  = longDReady ? 100.0 : long240Ready ? 80.0 : long60Ready ? 50.0 : long15Ready ? 30.0 : 0.0
+current_cap_short = shortDReady ? 100.0 : short240Ready ? 80.0 : short60Ready ? 50.0 : short15Ready ? 30.0 : 0.0
+
+signal_alloc(_cap, _signal, _existing) =>
+    _signal == "EMA25" ? math.max(_cap * 0.50 - _existing, 0.0) : _signal == "EMA50" ? math.max(_cap - _existing, 0.0) : _signal == "VWMA" ? math.max(_cap * 0.80 - _existing, 0.0) : 0.0
+
+// === Entry logic ===
+currentInvestedPct = math.abs(strategy.position_size) * close / strategy.equity * 100.0
+
+enter_trade(_dir, _tf, _signal, _allocPct, _patternStop, _ema50) =>
+    if _allocPct > 0
+        id = (_dir == strategy.long ? "L_" : "S_") + _tf + "_" + _signal + "_" + str.tostring(bar_index)
+        strategy.entry(id, _dir, qty=entry_qty_from_equity_pct(_allocPct))
+        if strategy.position_size == 0
+            entryTf        := _tf
+            entrySignal    := _signal
+            patternStop    := _patternStop
+            tfEma50AtEntry := _ema50
+            baseCapPct     := cap_for_tf(_tf)
+            nextCapPct     := baseCapPct
+    true
+
+if strategy.position_size == 0
+    if long15Ready or long60Ready or long240Ready or longDReady
+        if long15Ready and long15_vwmaTouch
+            alloc = signal_alloc(30.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.long, "15", "VWMA", alloc, long15_patternLow, long15_ema50)
+        else if long15Ready and long15_ema25Touch
+            alloc = signal_alloc(30.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.long, "15", "EMA25", alloc, long15_patternLow, long15_ema50)
+        else if long15Ready and long15_ema50Touch
+            alloc = signal_alloc(30.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.long, "15", "EMA50", alloc, long15_patternLow, long15_ema50)
+        else if long60Ready and long60_vwmaTouch
+            alloc = signal_alloc(50.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.long, "60", "VWMA", alloc, long60_patternLow, long60_ema50)
+        else if long60Ready and long60_ema25Touch
+            alloc = signal_alloc(50.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.long, "60", "EMA25", alloc, long60_patternLow, long60_ema50)
+        else if long60Ready and long60_ema50Touch
+            alloc = signal_alloc(50.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.long, "60", "EMA50", alloc, long60_patternLow, long60_ema50)
+        else if long240Ready and long240_vwmaTouch
+            alloc = signal_alloc(80.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.long, "240", "VWMA", alloc, long240_patternLow, long240_ema50)
+        else if long240Ready and long240_ema25Touch
+            alloc = signal_alloc(80.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.long, "240", "EMA25", alloc, long240_patternLow, long240_ema50)
+        else if long240Ready and long240_ema50Touch
+            alloc = signal_alloc(80.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.long, "240", "EMA50", alloc, long240_patternLow, long240_ema50)
+        else if longDReady and longD_vwmaTouch
+            alloc = signal_alloc(100.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.long, "D", "VWMA", alloc, longD_patternLow, longD_ema50)
+        else if longDReady and longD_ema25Touch
+            alloc = signal_alloc(100.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.long, "D", "EMA25", alloc, longD_patternLow, longD_ema50)
+        else if longDReady and longD_ema50Touch
+            alloc = signal_alloc(100.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.long, "D", "EMA50", alloc, longD_patternLow, longD_ema50)
+    else if short15Ready or short60Ready or short240Ready or shortDReady
+        if short15Ready and short15_vwmaTouch
+            alloc = signal_alloc(30.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.short, "15", "VWMA", alloc, short15_patternHigh, short15_ema50)
+        else if short15Ready and short15_ema25Touch
+            alloc = signal_alloc(30.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.short, "15", "EMA25", alloc, short15_patternHigh, short15_ema50)
+        else if short15Ready and short15_ema50Touch
+            alloc = signal_alloc(30.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.short, "15", "EMA50", alloc, short15_patternHigh, short15_ema50)
+        else if short60Ready and short60_vwmaTouch
+            alloc = signal_alloc(50.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.short, "60", "VWMA", alloc, short60_patternHigh, short60_ema50)
+        else if short60Ready and short60_ema25Touch
+            alloc = signal_alloc(50.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.short, "60", "EMA25", alloc, short60_patternHigh, short60_ema50)
+        else if short60Ready and short60_ema50Touch
+            alloc = signal_alloc(50.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.short, "60", "EMA50", alloc, short60_patternHigh, short60_ema50)
+        else if short240Ready and short240_vwmaTouch
+            alloc = signal_alloc(80.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.short, "240", "VWMA", alloc, short240_patternHigh, short240_ema50)
+        else if short240Ready and short240_ema25Touch
+            alloc = signal_alloc(80.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.short, "240", "EMA25", alloc, short240_patternHigh, short240_ema50)
+        else if short240Ready and short240_ema50Touch
+            alloc = signal_alloc(80.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.short, "240", "EMA50", alloc, short240_patternHigh, short240_ema50)
+        else if shortDReady and shortD_vwmaTouch
+            alloc = signal_alloc(100.0, "VWMA", currentInvestedPct)
+            enter_trade(strategy.short, "D", "VWMA", alloc, shortD_patternHigh, shortD_ema50)
+        else if shortDReady and shortD_ema25Touch
+            alloc = signal_alloc(100.0, "EMA25", currentInvestedPct)
+            enter_trade(strategy.short, "D", "EMA25", alloc, shortD_patternHigh, shortD_ema50)
+        else if shortDReady and shortD_ema50Touch
+            alloc = signal_alloc(100.0, "EMA50", currentInvestedPct)
+            enter_trade(strategy.short, "D", "EMA50", alloc, shortD_patternHigh, shortD_ema50)
+
+// Add-on scaling when higher timeframe joins.
+if strategy.position_size > 0 and current_cap_long > currentInvestedPct
+    if current_cap_long >= 50 and currentInvestedPct < 50 and (long60Ready or long240Ready or longDReady)
+        strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(current_cap_long - currentInvestedPct))
+    else if current_cap_long >= 80 and currentInvestedPct < 80 and (long240Ready or longDReady)
+        strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(current_cap_long - currentInvestedPct))
+    else if current_cap_long >= 100 and currentInvestedPct < 100 and longDReady
+        strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(current_cap_long - currentInvestedPct))
+
+if strategy.position_size < 0 and current_cap_short > currentInvestedPct
+    if current_cap_short >= 50 and currentInvestedPct < 50 and (short60Ready or short240Ready or shortDReady)
+        strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(current_cap_short - currentInvestedPct))
+    else if current_cap_short >= 80 and currentInvestedPct < 80 and (short240Ready or shortDReady)
+        strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(current_cap_short - currentInvestedPct))
+    else if current_cap_short >= 100 and currentInvestedPct < 100 and shortDReady
+        strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(current_cap_short - currentInvestedPct))
+
+// === Exit helpers ===
+close_pct(_pct) =>
+    qty = math.abs(strategy.position_size) * (_pct / 100.0)
+    strategy.order("EXIT_" + str.tostring(bar_index) + "_" + str.tostring(_pct), strategy.position_size > 0 ? strategy.short : strategy.long, qty=qty)
+    true
+
+entry_zlsma = entryTf == "15" ? (strategy.position_size > 0 ? long15_zlsma : short15_zlsma) : entryTf == "60" ? (strategy.position_size > 0 ? long60_zlsma : short60_zlsma) : entryTf == "240" ? (strategy.position_size > 0 ? long240_zlsma : short240_zlsma) : (strategy.position_size > 0 ? longD_zlsma : shortD_zlsma)
+
+entry_order_still_ok_long  = entryTf == "15" ? long15_ordered  : entryTf == "60" ? long60_ordered  : entryTf == "240" ? long240_ordered  : longD_ordered
+entry_order_still_ok_short = entryTf == "15" ? short15_ordered : entryTf == "60" ? short60_ordered : entryTf == "240" ? short240_ordered : shortD_ordered
+
+higher_target_hit_long =
+     (entryTf == "15"  and (high >= long60_zlsma  or high >= long60_bbU  or high >= long60_ema50  or high >= long60_vwma  or high >= long240_zlsma or high >= long240_bbU or high >= long240_ema50 or high >= long240_vwma or high >= longD_zlsma or high >= longD_bbU or high >= longD_ema50 or high >= longD_vwma)) or
+     (entryTf == "60"  and (high >= long240_zlsma or high >= long240_bbU or high >= long240_ema50 or high >= long240_vwma or high >= longD_zlsma  or high >= longD_bbU  or high >= longD_ema50  or high >= longD_vwma)) or
+     (entryTf == "240" and (high >= longD_zlsma   or high >= longD_bbU   or high >= longD_ema50   or high >= longD_vwma))
+
+higher_target_hit_short =
+     (entryTf == "15"  and (low <= short60_zlsma  or low <= short60_bbL  or low <= short60_ema50  or low <= short60_vwma  or low <= short240_zlsma or low <= short240_bbL or low <= short240_ema50 or low <= short240_vwma or low <= shortD_zlsma or low <= shortD_bbL or low <= shortD_ema50 or low <= shortD_vwma)) or
+     (entryTf == "60"  and (low <= short240_zlsma or low <= short240_bbL or low <= short240_ema50 or low <= short240_vwma or low <= shortD_zlsma  or low <= shortD_bbL  or low <= shortD_ema50  or low <= shortD_vwma)) or
+     (entryTf == "240" and (low <= shortD_zlsma   or low <= shortD_bbL   or low <= shortD_ema50   or low <= shortD_vwma))
+
+// === Take profits ===
+if strategy.position_size > 0
+    tpA = high >= entry_zlsma
+    tpB = high >= bb15U
+    tpC = higher_target_hit_long
+    if not tpA_done and tpA
+        close_pct(30)
+        tpA_done := true
+    if not tpB_done and tpB
+        close_pct(30)
+        tpB_done := true
+    if not tpC_done and tpC
+        close_pct(30)
+        tpC_done := true
+    if tpA_done and tpB_done and tpC_done and not runner_alert_sent
+        alert("Runner 10% remains on long position", alert.freq_once_per_bar_close)
+        runner_alert_sent := true
+    if runner_alert_sent and close <= strategy.position_avg_price
+        strategy.close_all(comment="Runner breakeven exit")
+
+if strategy.position_size < 0
+    tpA = low <= entry_zlsma
+    tpB = low <= bb15L
+    tpC = higher_target_hit_short
+    if not tpA_done and tpA
+        close_pct(30)
+        tpA_done := true
+    if not tpB_done and tpB
+        close_pct(30)
+        tpB_done := true
+    if not tpC_done and tpC
+        close_pct(30)
+        tpC_done := true
+    if tpA_done and tpB_done and tpC_done and not runner_alert_sent
+        alert("Runner 10% remains on short position", alert.freq_once_per_bar_close)
+        runner_alert_sent := true
+    if runner_alert_sent and close >= strategy.position_avg_price
+        strategy.close_all(comment="Runner breakeven exit")
+
+// === Stops ===
+if strategy.position_size > 0
+    stop1 = not na(patternStop) and low < patternStop
+    stop2 = close < tfEma50AtEntry * (1 - nearPct)
+    stop3 = not entry_order_still_ok_long
+    stop4 = low <= bb15L
+    if stop1 or stop2 or stop3 or stop4
+        strategy.close_all(comment="Long stop")
+
+if strategy.position_size < 0
+    stop1 = not na(patternStop) and high > patternStop
+    stop2 = close > tfEma50AtEntry * (1 + nearPct)
+    stop3 = not entry_order_still_ok_short
+    stop4 = high >= bb15U
+    if stop1 or stop2 or stop3 or stop4
+        strategy.close_all(comment="Short stop")
+
+plot(long15_ema50, "15m EMA50",    color=color.orange)
+plot(long15_vwma,  "15m VWMA",     color=color.blue)
+plot(bb15U,        "15m BB Upper", color=color.new(color.green, 20))
+plot(bb15L,        "15m BB Lower", color=color.new(color.red, 20))
