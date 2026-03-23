@@ -1,5 +1,5 @@
 //@version=6
-strategy("EMA MTF Pullback Strategy vFinal", overlay=true, pyramiding=20, initial_capital=10000, default_qty_type=strategy.fixed, commission_type=strategy.commission.percent, commission_value=0.04)
+strategy("EMA MTF Pullback Strategy vFinal", overlay=true, pyramiding=20, initial_capital=10000, default_qty_type=strategy.fixed, commission_type=strategy.commission.percent, commission_value=0.04, max_labels_count=500, max_lines_count=500)
 
 // === Inputs ===
 grpCore = "Core"
@@ -358,25 +358,47 @@ if stagedAlloc > 0 and strategy.position_size == 0
     tfEma50AtEntry := stagedEma50
     baseCapPct     := cap_for_tf(stagedTf)
     nextCapPct     := baseCapPct
+    // Entry label & price line
+    _lbl = (stagedDir == strategy.long ? "LONG" : "SHORT") + " " + stagedTf + " " + stagedSignal + "\n" + str.tostring(stagedAlloc, "#.#") + "%"
+    _entryPrice = close
+    _lineCol = stagedDir == strategy.long ? color.green : color.red
+    if stagedDir == strategy.long
+        label.new(bar_index, low, _lbl, style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+    else
+        label.new(bar_index, high, _lbl, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+    line.new(bar_index - 1, _entryPrice, bar_index + 1, _entryPrice, color=_lineCol, width=3, style=line.style_solid)
+    label.new(bar_index + 2, _entryPrice, str.tostring(_entryPrice, "#.#"), style=label.style_none, textcolor=_lineCol, size=size.normal)
 
 // Add-on scaling when higher timeframe joins.
+_scaled_long = false
 if strategy.position_size > 0 and current_cap_long > currentInvestedPct
     _scale_add = current_cap_long - currentInvestedPct
     if current_cap_long >= 50 and currentInvestedPct < 50 and (long60Ready or long240Ready or longDReady)
         strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(_scale_add))
+        _scaled_long := true
     else if current_cap_long >= 80 and currentInvestedPct < 80 and (long240Ready or longDReady)
         strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(_scale_add))
+        _scaled_long := true
     else if current_cap_long >= 100 and currentInvestedPct < 100 and longDReady
         strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(_scale_add))
+        _scaled_long := true
+    if _scaled_long
+        label.new(bar_index, low, "L SCALE\n+" + str.tostring(_scale_add, "#.#") + "%", style=label.style_label_up, color=color.lime, textcolor=color.black, size=size.small)
 
+_scaled_short = false
 if strategy.position_size < 0 and current_cap_short > currentInvestedPct
     _scale_add = current_cap_short - currentInvestedPct
     if current_cap_short >= 50 and currentInvestedPct < 50 and (short60Ready or short240Ready or shortDReady)
         strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(_scale_add))
+        _scaled_short := true
     else if current_cap_short >= 80 and currentInvestedPct < 80 and (short240Ready or shortDReady)
         strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(_scale_add))
+        _scaled_short := true
     else if current_cap_short >= 100 and currentInvestedPct < 100 and shortDReady
         strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(_scale_add))
+        _scaled_short := true
+    if _scaled_short
+        label.new(bar_index, high, "S SCALE\n+" + str.tostring(_scale_add, "#.#") + "%", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
 
 // === Exit helpers ===
 close_pct(_pct) =>
@@ -407,17 +429,21 @@ if strategy.position_size > 0
     if not tpA_done and tpA
         close_pct(30)
         tpA_done := true
+        label.new(bar_index, high, "TP1\n-30%", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
     if not tpB_done and tpB
         close_pct(30)
         tpB_done := true
+        label.new(bar_index, high, "TP2\n-30%", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
     if not tpC_done and tpC
         close_pct(30)
         tpC_done := true
+        label.new(bar_index, high, "TP3\n-30%", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
     if tpA_done and tpB_done and tpC_done and not runner_alert_sent
         alert("Runner 10% remains on long position", alert.freq_once_per_bar_close)
         runner_alert_sent := true
     if runner_alert_sent and close <= strategy.position_avg_price
         strategy.close_all(comment="Runner breakeven exit")
+        label.new(bar_index, high, "RUNNER\nBE EXIT", style=label.style_label_down, color=color.gray, textcolor=color.white, size=size.small)
 
 if strategy.position_size < 0
     tpA = low <= entry_zlsma
@@ -426,28 +452,47 @@ if strategy.position_size < 0
     if not tpA_done and tpA
         close_pct(30)
         tpA_done := true
+        label.new(bar_index, low, "TP1\n-30%", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
     if not tpB_done and tpB
         close_pct(30)
         tpB_done := true
+        label.new(bar_index, low, "TP2\n-30%", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
     if not tpC_done and tpC
         close_pct(30)
         tpC_done := true
+        label.new(bar_index, low, "TP3\n-30%", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
     if tpA_done and tpB_done and tpC_done and not runner_alert_sent
         alert("Runner 10% remains on short position", alert.freq_once_per_bar_close)
         runner_alert_sent := true
     if runner_alert_sent and close >= strategy.position_avg_price
         strategy.close_all(comment="Runner breakeven exit")
+        label.new(bar_index, low, "RUNNER\nBE EXIT", style=label.style_label_up, color=color.gray, textcolor=color.white, size=size.small)
 
 // === Stops ===
+// 4 stop conditions: entry wick broken, EMA50 breach, EMA order collapse, 15m BB breach
 if strategy.position_size > 0
-    stop_on_entry_wick = not na(patternStop) and low < patternStop
-    if stop_on_entry_wick
-        strategy.close_all(comment="Long stop: entry wick broken")
+    stop1 = not na(patternStop) and low < patternStop
+    stop2 = close < tfEma50AtEntry * (1 - nearPct)
+    stop3 = not entry_order_still_ok_long
+    stop4 = low <= bb15L
+    if stop1 or stop2 or stop3 or stop4
+        _stopPrice = stop1 ? patternStop : stop4 ? bb15L : stop2 ? tfEma50AtEntry * (1 - nearPct) : close
+        strategy.close_all(comment="Long stop")
+        label.new(bar_index, high, "STOP\n-100%", style=label.style_label_down, color=color.maroon, textcolor=color.white, size=size.small)
+        line.new(bar_index - 1, _stopPrice, bar_index + 1, _stopPrice, color=color.orange, width=2, style=line.style_solid)
+        label.new(bar_index + 2, _stopPrice, str.tostring(_stopPrice, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
 
 if strategy.position_size < 0
-    stop_on_entry_wick = not na(patternStop) and high > patternStop
-    if stop_on_entry_wick
-        strategy.close_all(comment="Short stop: entry wick broken")
+    stop1 = not na(patternStop) and high > patternStop
+    stop2 = close > tfEma50AtEntry * (1 + nearPct)
+    stop3 = not entry_order_still_ok_short
+    stop4 = high >= bb15U
+    if stop1 or stop2 or stop3 or stop4
+        _stopPrice = stop1 ? patternStop : stop4 ? bb15U : stop2 ? tfEma50AtEntry * (1 + nearPct) : close
+        strategy.close_all(comment="Short stop")
+        label.new(bar_index, low, "STOP\n-100%", style=label.style_label_up, color=color.maroon, textcolor=color.white, size=size.small)
+        line.new(bar_index - 1, _stopPrice, bar_index + 1, _stopPrice, color=color.orange, width=2, style=line.style_solid)
+        label.new(bar_index + 2, _stopPrice, str.tostring(_stopPrice, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
 
 plot(long15_ema50,  "15m EMA50",    color=color.orange)
 plot(long15_vwma,   "15m VWMA",     color=color.blue)
