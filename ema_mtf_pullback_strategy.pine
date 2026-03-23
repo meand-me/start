@@ -358,11 +358,11 @@ if _e_alloc > 0 and strategy.position_size == 0
     tfEma50AtEntry := _e_ema50
     baseCapPct     := cap_for_tf(_e_tf)
     nextCapPct     := baseCapPct
-    _lbl = (_e_dir == strategy.long ? "LONG" : "SHORT") + " " + _e_tf + " " + _e_signal + "\n" + str.tostring(_e_alloc, "#.#") + "%"
+    _lbl = "★★★★★\n" + (_e_dir == strategy.long ? "LONG" : "SHORT") + " " + _e_tf + " " + _e_signal + "\n" + str.tostring(_e_alloc, "#.#") + "%"
     if _e_dir == strategy.long
-        label.new(bar_index, low, _lbl, style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+        label.new(bar_index, low, _lbl, style=label.style_label_up, color=color.green, textcolor=color.white, size=size.normal)
     else
-        label.new(bar_index, high, _lbl, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+        label.new(bar_index, high, _lbl, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.normal)
 
 // Add-on scaling when higher timeframe joins.
 _scaled_long = false
@@ -482,7 +482,4 @@ if strategy.position_size < 0
         strategy.close_all(comment="Short stop")
         label.new(bar_index, low, "STOP\n-100%", style=label.style_label_up, color=color.maroon, textcolor=color.white, size=size.small)
 
-plot(long15_ema50, "", color=color.orange,            display=display.pane)
-plot(long15_vwma,  "", color=color.blue,              display=display.pane)
-plot(bb15U,        "", color=color.new(color.green, 20), display=display.pane)
-plot(bb15L,        "", color=color.new(color.red, 20),   display=display.pane)
+// No indicator plots — use external indicator for chart visuals
