@@ -1,5 +1,5 @@
 //@version=6
-strategy("EMA MTF Pullback Strategy vFinal", overlay=true, pyramiding=20, initial_capital=10000, default_qty_type=strategy.fixed, commission_type=strategy.commission.percent, commission_value=0.04, max_labels_count=500)
+strategy("EMA MTF Pullback Strategy vFinal", overlay=true, pyramiding=20, initial_capital=10000, default_qty_type=strategy.fixed, commission_type=strategy.commission.percent, commission_value=0.04)
 
 // === Inputs ===
 grpCore = "Core"
@@ -11,7 +11,7 @@ vwmaLen  = input.int(150, "VWMA Length",  minval=1, group=grpCore)
 zlsmaLen = input.int(150, "ZLSMA Length", minval=1, group=grpCore)
 
 grpBB  = "Bollinger Band"
-bbLen  = input.int(25,    "BB Length", minval=1,   group=grpBB)
+bbLen  = input.int(20,    "BB Length", minval=1,   group=grpBB)
 bbMult = input.float(2.0, "BB Mult",  minval=0.1, group=grpBB)
 
 grpRisk = "Risk"
@@ -76,8 +76,8 @@ calc_long_setup() =>
     ema15 = ta.ema(close, ema15Len)
     ema25 = ta.ema(close, ema25Len)
     ema50 = ta.ema(close, ema50Len)
-    vwma  = ta.vwma(close, vwmaLen)
-    zlsma = zlsma_func(close, zlsmaLen)
+    _vwma  = ta.vwma(close, vwmaLen)
+    _zlsma = zlsma_func(close, zlsmaLen)
     bbU   = bb_upper(close, bbLen, bbMult)
     bbL   = bb_lower(close, bbLen, bbMult)
     ordered    = ema5 > ema15 and ema15 > ema25 and ema25 > ema50
@@ -85,16 +85,16 @@ calc_long_setup() =>
     streakOk   = bull_streak_3(open, close)
     ema25Touch = near_tail_long(open, close, low, ema25)
     ema50Touch = near_tail_long(open, close, low, ema50)
-    vwmaTouch  = near_tail_long(open, close, low, vwma)
-    [ordered, candleOk, streakOk, ema25Touch, ema50Touch, vwmaTouch, ema50, vwma, zlsma, bbU, bbL, low]
+    vwmaTouch  = near_tail_long(open, close, low, _vwma)
+    [ordered, candleOk, streakOk, ema25Touch, ema50Touch, vwmaTouch, ema50, _vwma, _zlsma, bbU, bbL, low]
 
 calc_short_setup() =>
     ema5  = ta.ema(close, ema5Len)
     ema15 = ta.ema(close, ema15Len)
     ema25 = ta.ema(close, ema25Len)
     ema50 = ta.ema(close, ema50Len)
-    vwma  = ta.vwma(close, vwmaLen)
-    zlsma = zlsma_func(close, zlsmaLen)
+    _vwma  = ta.vwma(close, vwmaLen)
+    _zlsma = zlsma_func(close, zlsmaLen)
     bbU   = bb_upper(close, bbLen, bbMult)
     bbL   = bb_lower(close, bbLen, bbMult)
     ordered    = ema5 < ema15 and ema15 < ema25 and ema25 < ema50
@@ -102,8 +102,8 @@ calc_short_setup() =>
     streakOk   = bear_streak_3(open, close)
     ema25Touch = near_tail_short(open, close, high, ema25)
     ema50Touch = near_tail_short(open, close, high, ema50)
-    vwmaTouch  = near_tail_short(open, close, high, vwma)
-    [ordered, candleOk, streakOk, ema25Touch, ema50Touch, vwmaTouch, ema50, vwma, zlsma, bbU, bbL, high]
+    vwmaTouch  = near_tail_short(open, close, high, _vwma)
+    [ordered, candleOk, streakOk, ema25Touch, ema50Touch, vwmaTouch, ema50, _vwma, _zlsma, bbU, bbL, high]
 
 [long15_ordered,  long15_candle,  long15_streak,  long15_ema25Touch,  long15_ema50Touch,  long15_vwmaTouch,  long15_ema50,  long15_vwma,  long15_zlsma,  long15_bbU,  long15_bbL,  long15_patternLow]  = request.security(syminfo.tickerid, "15",  calc_long_setup(),  lookahead=barmerge.lookahead_off)
 [long60_ordered,  long60_candle,  long60_streak,  long60_ema25Touch,  long60_ema50Touch,  long60_vwmaTouch,  long60_ema50,  long60_vwma,  long60_zlsma,  long60_bbU,  long60_bbL,  long60_patternLow]  = request.security(syminfo.tickerid, "60",  calc_long_setup(),  lookahead=barmerge.lookahead_off)
@@ -168,241 +168,220 @@ signal_alloc(_cap, _signal, _existing) =>
 // === Entry logic ===
 currentInvestedPct = math.abs(strategy.position_size) * close / strategy.equity * 100.0
 
-// Stage entry parameters (v6: cannot modify global vars inside functions)
-_e_alloc  = 0.0
-_e_dir    = strategy.long
-_e_tf     = ""
-_e_signal = ""
-float _e_stop  = na
-float _e_ema50 = na
+// Pine v6 does not allow modifying global vars inside functions,
+// so entry parameters are staged first and then applied at global scope.
+stagedAlloc  = 0.0
+stagedDir    = strategy.long
+stagedTf     = ""
+stagedSignal = ""
+float stagedStop  = na
+float stagedEma50 = na
 
 if strategy.position_size == 0
     if long15Ready or long60Ready or long240Ready or longDReady
         if long15Ready and long15_vwmaTouch
-            _e_alloc := signal_alloc(30.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "15"
-            _e_signal := "VWMA"
-            _e_stop := long15_patternLow
-            _e_ema50 := long15_ema50
+            stagedAlloc  := signal_alloc(30.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "15"
+            stagedSignal := "VWMA"
+            stagedStop   := long15_patternLow
+            stagedEma50  := long15_ema50
         else if long15Ready and long15_ema25Touch
-            _e_alloc := signal_alloc(30.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "15"
-            _e_signal := "EMA25"
-            _e_stop := long15_patternLow
-            _e_ema50 := long15_ema50
+            stagedAlloc  := signal_alloc(30.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "15"
+            stagedSignal := "EMA25"
+            stagedStop   := long15_patternLow
+            stagedEma50  := long15_ema50
         else if long15Ready and long15_ema50Touch
-            _e_alloc := signal_alloc(30.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "15"
-            _e_signal := "EMA50"
-            _e_stop := long15_patternLow
-            _e_ema50 := long15_ema50
+            stagedAlloc  := signal_alloc(30.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "15"
+            stagedSignal := "EMA50"
+            stagedStop   := long15_patternLow
+            stagedEma50  := long15_ema50
         else if long60Ready and long60_vwmaTouch
-            _e_alloc := signal_alloc(50.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "60"
-            _e_signal := "VWMA"
-            _e_stop := long60_patternLow
-            _e_ema50 := long60_ema50
+            stagedAlloc  := signal_alloc(50.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "60"
+            stagedSignal := "VWMA"
+            stagedStop   := long60_patternLow
+            stagedEma50  := long60_ema50
         else if long60Ready and long60_ema25Touch
-            _e_alloc := signal_alloc(50.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "60"
-            _e_signal := "EMA25"
-            _e_stop := long60_patternLow
-            _e_ema50 := long60_ema50
+            stagedAlloc  := signal_alloc(50.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "60"
+            stagedSignal := "EMA25"
+            stagedStop   := long60_patternLow
+            stagedEma50  := long60_ema50
         else if long60Ready and long60_ema50Touch
-            _e_alloc := signal_alloc(50.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "60"
-            _e_signal := "EMA50"
-            _e_stop := long60_patternLow
-            _e_ema50 := long60_ema50
+            stagedAlloc  := signal_alloc(50.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "60"
+            stagedSignal := "EMA50"
+            stagedStop   := long60_patternLow
+            stagedEma50  := long60_ema50
         else if long240Ready and long240_vwmaTouch
-            _e_alloc := signal_alloc(80.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "240"
-            _e_signal := "VWMA"
-            _e_stop := long240_patternLow
-            _e_ema50 := long240_ema50
+            stagedAlloc  := signal_alloc(80.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "240"
+            stagedSignal := "VWMA"
+            stagedStop   := long240_patternLow
+            stagedEma50  := long240_ema50
         else if long240Ready and long240_ema25Touch
-            _e_alloc := signal_alloc(80.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "240"
-            _e_signal := "EMA25"
-            _e_stop := long240_patternLow
-            _e_ema50 := long240_ema50
+            stagedAlloc  := signal_alloc(80.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "240"
+            stagedSignal := "EMA25"
+            stagedStop   := long240_patternLow
+            stagedEma50  := long240_ema50
         else if long240Ready and long240_ema50Touch
-            _e_alloc := signal_alloc(80.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "240"
-            _e_signal := "EMA50"
-            _e_stop := long240_patternLow
-            _e_ema50 := long240_ema50
+            stagedAlloc  := signal_alloc(80.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "240"
+            stagedSignal := "EMA50"
+            stagedStop   := long240_patternLow
+            stagedEma50  := long240_ema50
         else if longDReady and longD_vwmaTouch
-            _e_alloc := signal_alloc(100.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "D"
-            _e_signal := "VWMA"
-            _e_stop := longD_patternLow
-            _e_ema50 := longD_ema50
+            stagedAlloc  := signal_alloc(100.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "D"
+            stagedSignal := "VWMA"
+            stagedStop   := longD_patternLow
+            stagedEma50  := longD_ema50
         else if longDReady and longD_ema25Touch
-            _e_alloc := signal_alloc(100.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "D"
-            _e_signal := "EMA25"
-            _e_stop := longD_patternLow
-            _e_ema50 := longD_ema50
+            stagedAlloc  := signal_alloc(100.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "D"
+            stagedSignal := "EMA25"
+            stagedStop   := longD_patternLow
+            stagedEma50  := longD_ema50
         else if longDReady and longD_ema50Touch
-            _e_alloc := signal_alloc(100.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.long
-            _e_tf := "D"
-            _e_signal := "EMA50"
-            _e_stop := longD_patternLow
-            _e_ema50 := longD_ema50
+            stagedAlloc  := signal_alloc(100.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.long
+            stagedTf     := "D"
+            stagedSignal := "EMA50"
+            stagedStop   := longD_patternLow
+            stagedEma50  := longD_ema50
     else if short15Ready or short60Ready or short240Ready or shortDReady
         if short15Ready and short15_vwmaTouch
-            _e_alloc := signal_alloc(30.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "15"
-            _e_signal := "VWMA"
-            _e_stop := short15_patternHigh
-            _e_ema50 := short15_ema50
+            stagedAlloc  := signal_alloc(30.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "15"
+            stagedSignal := "VWMA"
+            stagedStop   := short15_patternHigh
+            stagedEma50  := short15_ema50
         else if short15Ready and short15_ema25Touch
-            _e_alloc := signal_alloc(30.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "15"
-            _e_signal := "EMA25"
-            _e_stop := short15_patternHigh
-            _e_ema50 := short15_ema50
+            stagedAlloc  := signal_alloc(30.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "15"
+            stagedSignal := "EMA25"
+            stagedStop   := short15_patternHigh
+            stagedEma50  := short15_ema50
         else if short15Ready and short15_ema50Touch
-            _e_alloc := signal_alloc(30.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "15"
-            _e_signal := "EMA50"
-            _e_stop := short15_patternHigh
-            _e_ema50 := short15_ema50
+            stagedAlloc  := signal_alloc(30.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "15"
+            stagedSignal := "EMA50"
+            stagedStop   := short15_patternHigh
+            stagedEma50  := short15_ema50
         else if short60Ready and short60_vwmaTouch
-            _e_alloc := signal_alloc(50.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "60"
-            _e_signal := "VWMA"
-            _e_stop := short60_patternHigh
-            _e_ema50 := short60_ema50
+            stagedAlloc  := signal_alloc(50.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "60"
+            stagedSignal := "VWMA"
+            stagedStop   := short60_patternHigh
+            stagedEma50  := short60_ema50
         else if short60Ready and short60_ema25Touch
-            _e_alloc := signal_alloc(50.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "60"
-            _e_signal := "EMA25"
-            _e_stop := short60_patternHigh
-            _e_ema50 := short60_ema50
+            stagedAlloc  := signal_alloc(50.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "60"
+            stagedSignal := "EMA25"
+            stagedStop   := short60_patternHigh
+            stagedEma50  := short60_ema50
         else if short60Ready and short60_ema50Touch
-            _e_alloc := signal_alloc(50.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "60"
-            _e_signal := "EMA50"
-            _e_stop := short60_patternHigh
-            _e_ema50 := short60_ema50
+            stagedAlloc  := signal_alloc(50.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "60"
+            stagedSignal := "EMA50"
+            stagedStop   := short60_patternHigh
+            stagedEma50  := short60_ema50
         else if short240Ready and short240_vwmaTouch
-            _e_alloc := signal_alloc(80.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "240"
-            _e_signal := "VWMA"
-            _e_stop := short240_patternHigh
-            _e_ema50 := short240_ema50
+            stagedAlloc  := signal_alloc(80.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "240"
+            stagedSignal := "VWMA"
+            stagedStop   := short240_patternHigh
+            stagedEma50  := short240_ema50
         else if short240Ready and short240_ema25Touch
-            _e_alloc := signal_alloc(80.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "240"
-            _e_signal := "EMA25"
-            _e_stop := short240_patternHigh
-            _e_ema50 := short240_ema50
+            stagedAlloc  := signal_alloc(80.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "240"
+            stagedSignal := "EMA25"
+            stagedStop   := short240_patternHigh
+            stagedEma50  := short240_ema50
         else if short240Ready and short240_ema50Touch
-            _e_alloc := signal_alloc(80.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "240"
-            _e_signal := "EMA50"
-            _e_stop := short240_patternHigh
-            _e_ema50 := short240_ema50
+            stagedAlloc  := signal_alloc(80.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "240"
+            stagedSignal := "EMA50"
+            stagedStop   := short240_patternHigh
+            stagedEma50  := short240_ema50
         else if shortDReady and shortD_vwmaTouch
-            _e_alloc := signal_alloc(100.0, "VWMA", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "D"
-            _e_signal := "VWMA"
-            _e_stop := shortD_patternHigh
-            _e_ema50 := shortD_ema50
+            stagedAlloc  := signal_alloc(100.0, "VWMA", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "D"
+            stagedSignal := "VWMA"
+            stagedStop   := shortD_patternHigh
+            stagedEma50  := shortD_ema50
         else if shortDReady and shortD_ema25Touch
-            _e_alloc := signal_alloc(100.0, "EMA25", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "D"
-            _e_signal := "EMA25"
-            _e_stop := shortD_patternHigh
-            _e_ema50 := shortD_ema50
+            stagedAlloc  := signal_alloc(100.0, "EMA25", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "D"
+            stagedSignal := "EMA25"
+            stagedStop   := shortD_patternHigh
+            stagedEma50  := shortD_ema50
         else if shortDReady and shortD_ema50Touch
-            _e_alloc := signal_alloc(100.0, "EMA50", currentInvestedPct)
-            _e_dir := strategy.short
-            _e_tf := "D"
-            _e_signal := "EMA50"
-            _e_stop := shortD_patternHigh
-            _e_ema50 := shortD_ema50
+            stagedAlloc  := signal_alloc(100.0, "EMA50", currentInvestedPct)
+            stagedDir    := strategy.short
+            stagedTf     := "D"
+            stagedSignal := "EMA50"
+            stagedStop   := shortD_patternHigh
+            stagedEma50  := shortD_ema50
 
-// Process staged entry at global scope (where global var modification is allowed)
-if _e_alloc > 0 and strategy.position_size == 0
-    _e_id = (_e_dir == strategy.long ? "L_" : "S_") + _e_tf + "_" + _e_signal + "_" + str.tostring(bar_index)
-    strategy.entry(_e_id, _e_dir, qty=entry_qty_from_equity_pct(_e_alloc))
-    entryTf        := _e_tf
-    entrySignal    := _e_signal
-    patternStop    := _e_stop
-    tfEma50AtEntry := _e_ema50
-    baseCapPct     := cap_for_tf(_e_tf)
+if stagedAlloc > 0 and strategy.position_size == 0
+    stagedId = (stagedDir == strategy.long ? "L_" : "S_") + stagedTf + "_" + stagedSignal + "_" + str.tostring(bar_index)
+    strategy.entry(stagedId, stagedDir, qty=entry_qty_from_equity_pct(stagedAlloc))
+    entryTf        := stagedTf
+    entrySignal    := stagedSignal
+    patternStop    := stagedStop
+    tfEma50AtEntry := stagedEma50
+    baseCapPct     := cap_for_tf(stagedTf)
     nextCapPct     := baseCapPct
-    _lbl = (_e_dir == strategy.long ? "LONG" : "SHORT") + " " + _e_tf + " " + _e_signal + "\n" + str.tostring(_e_alloc, "#.#") + "%"
-    _entryPrice = close
-    _lineCol = _e_dir == strategy.long ? color.green : color.red
-    if _e_dir == strategy.long
-        label.new(bar_index, low, _lbl, style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
-    else
-        label.new(bar_index, high, _lbl, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
-    line.new(bar_index - 1, _entryPrice, bar_index + 1, _entryPrice, color=_lineCol, width=3, style=line.style_solid)
-    label.new(bar_index + 2, _entryPrice, str.tostring(_entryPrice, "#.#"), style=label.style_none, textcolor=_lineCol, size=size.normal)
 
 // Add-on scaling when higher timeframe joins.
-_scaled_long = false
 if strategy.position_size > 0 and current_cap_long > currentInvestedPct
     _scale_add = current_cap_long - currentInvestedPct
     if current_cap_long >= 50 and currentInvestedPct < 50 and (long60Ready or long240Ready or longDReady)
         strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(_scale_add))
-        _scaled_long := true
     else if current_cap_long >= 80 and currentInvestedPct < 80 and (long240Ready or longDReady)
         strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(_scale_add))
-        _scaled_long := true
     else if current_cap_long >= 100 and currentInvestedPct < 100 and longDReady
         strategy.entry("L_SCALE_" + str.tostring(bar_index), strategy.long, qty=entry_qty_from_equity_pct(_scale_add))
-        _scaled_long := true
-    if _scaled_long
-        label.new(bar_index, low, "L SCALE\n+" + str.tostring(_scale_add, "#.#") + "%", style=label.style_label_up, color=color.lime, textcolor=color.black, size=size.small)
 
-_scaled_short = false
 if strategy.position_size < 0 and current_cap_short > currentInvestedPct
     _scale_add = current_cap_short - currentInvestedPct
     if current_cap_short >= 50 and currentInvestedPct < 50 and (short60Ready or short240Ready or shortDReady)
         strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(_scale_add))
-        _scaled_short := true
     else if current_cap_short >= 80 and currentInvestedPct < 80 and (short240Ready or shortDReady)
         strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(_scale_add))
-        _scaled_short := true
     else if current_cap_short >= 100 and currentInvestedPct < 100 and shortDReady
         strategy.entry("S_SCALE_" + str.tostring(bar_index), strategy.short, qty=entry_qty_from_equity_pct(_scale_add))
-        _scaled_short := true
-    if _scaled_short
-        label.new(bar_index, high, "S SCALE\n+" + str.tostring(_scale_add, "#.#") + "%", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
 
 // === Exit helpers ===
 close_pct(_pct) =>
-    qty = math.abs(strategy.position_size) * (_pct / 100.0)
-    strategy.order("EXIT_" + str.tostring(bar_index) + "_" + str.tostring(_pct), strategy.position_size > 0 ? strategy.short : strategy.long, qty=qty)
+    _qty = math.abs(strategy.position_size) * (_pct / 100.0)
+    strategy.order("EXIT_" + str.tostring(bar_index) + "_" + str.tostring(_pct), strategy.position_size > 0 ? strategy.short : strategy.long, qty=_qty)
     true
 
 entry_zlsma = entryTf == "15" ? (strategy.position_size > 0 ? long15_zlsma : short15_zlsma) : entryTf == "60" ? (strategy.position_size > 0 ? long60_zlsma : short60_zlsma) : entryTf == "240" ? (strategy.position_size > 0 ? long240_zlsma : short240_zlsma) : (strategy.position_size > 0 ? longD_zlsma : shortD_zlsma)
@@ -428,21 +407,17 @@ if strategy.position_size > 0
     if not tpA_done and tpA
         close_pct(30)
         tpA_done := true
-        label.new(bar_index, high, "TP1\n-30%", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
     if not tpB_done and tpB
         close_pct(30)
         tpB_done := true
-        label.new(bar_index, high, "TP2\n-30%", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
     if not tpC_done and tpC
         close_pct(30)
         tpC_done := true
-        label.new(bar_index, high, "TP3\n-30%", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
     if tpA_done and tpB_done and tpC_done and not runner_alert_sent
         alert("Runner 10% remains on long position", alert.freq_once_per_bar_close)
         runner_alert_sent := true
     if runner_alert_sent and close <= strategy.position_avg_price
         strategy.close_all(comment="Runner breakeven exit")
-        label.new(bar_index, high, "RUNNER\nBE EXIT", style=label.style_label_down, color=color.gray, textcolor=color.white, size=size.small)
 
 if strategy.position_size < 0
     tpA = low <= entry_zlsma
@@ -451,45 +426,30 @@ if strategy.position_size < 0
     if not tpA_done and tpA
         close_pct(30)
         tpA_done := true
-        label.new(bar_index, low, "TP1\n-30%", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
     if not tpB_done and tpB
         close_pct(30)
         tpB_done := true
-        label.new(bar_index, low, "TP2\n-30%", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
     if not tpC_done and tpC
         close_pct(30)
         tpC_done := true
-        label.new(bar_index, low, "TP3\n-30%", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
     if tpA_done and tpB_done and tpC_done and not runner_alert_sent
         alert("Runner 10% remains on short position", alert.freq_once_per_bar_close)
         runner_alert_sent := true
     if runner_alert_sent and close >= strategy.position_avg_price
         strategy.close_all(comment="Runner breakeven exit")
-        label.new(bar_index, low, "RUNNER\nBE EXIT", style=label.style_label_up, color=color.gray, textcolor=color.white, size=size.small)
 
 // === Stops ===
 if strategy.position_size > 0
-    stop1 = not na(patternStop) and low < patternStop
-    stop2 = close < tfEma50AtEntry * (1 - nearPct)
-    stop3 = not entry_order_still_ok_long
-    stop4 = low <= bb15L
-    if stop1 or stop2 or stop3 or stop4
-        _stopPrice = stop1 ? patternStop : stop4 ? bb15L : stop2 ? tfEma50AtEntry * (1 - nearPct) : close
-        strategy.close_all(comment="Long stop")
-        label.new(bar_index, high, "STOP\n-100%", style=label.style_label_down, color=color.maroon, textcolor=color.white, size=size.small)
-        line.new(bar_index - 1, _stopPrice, bar_index + 1, _stopPrice, color=color.orange, width=2, style=line.style_solid)
-        label.new(bar_index + 2, _stopPrice, str.tostring(_stopPrice, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
+    stop_on_entry_wick = not na(patternStop) and low < patternStop
+    if stop_on_entry_wick
+        strategy.close_all(comment="Long stop: entry wick broken")
 
 if strategy.position_size < 0
-    stop1 = not na(patternStop) and high > patternStop
-    stop2 = close > tfEma50AtEntry * (1 + nearPct)
-    stop3 = not entry_order_still_ok_short
-    stop4 = high >= bb15U
-    if stop1 or stop2 or stop3 or stop4
-        _stopPrice = stop1 ? patternStop : stop4 ? bb15U : stop2 ? tfEma50AtEntry * (1 + nearPct) : close
-        strategy.close_all(comment="Short stop")
-        label.new(bar_index, low, "STOP\n-100%", style=label.style_label_up, color=color.maroon, textcolor=color.white, size=size.small)
-        line.new(bar_index - 1, _stopPrice, bar_index + 1, _stopPrice, color=color.orange, width=2, style=line.style_solid)
-        label.new(bar_index + 2, _stopPrice, str.tostring(_stopPrice, "#.#"), style=label.style_none, textcolor=color.orange, size=size.small)
+    stop_on_entry_wick = not na(patternStop) and high > patternStop
+    if stop_on_entry_wick
+        strategy.close_all(comment="Short stop: entry wick broken")
 
-// No indicator plots — use external indicator for chart visuals
+plot(long15_ema50,  "15m EMA50",    color=color.orange)
+plot(long15_vwma,   "15m VWMA",     color=color.blue)
+plot(bb15U,         "15m BB Upper", color=color.new(color.green, 20))
+plot(bb15L,         "15m BB Lower", color=color.new(color.red, 20))
